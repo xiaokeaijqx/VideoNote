@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>VideoMemo · Redesign</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700;800&family=Sora:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="app.css" />
+<style>
+  /* loading splash so we never flash unstyled */
+  #boot { position: fixed; inset: 0; display: grid; place-items: center; background: #F7F1E7; z-index: 9999; transition: opacity .3s; }
+  #boot.gone { opacity: 0; pointer-events: none; }
+</style>
+</head>
+<body data-theme="warm">
+  <div id="boot"><div style="width:40px;height:40px;border:3px solid #E7DAC5;border-top-color:#D2682F;border-radius:50%;animation:spin 1s linear infinite"></div></div>
+  <div id="root"></div>
+
+  <template id="__bundler_thumbnail">
+    <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+      <rect width="100" height="100" rx="22" fill="#D2682F"/>
+      <path d="M40 32 L40 56 L62 44 Z" fill="#fff"/>
+      <rect x="32" y="64" width="36" height="5" rx="2.5" fill="#fff" opacity="0.9"/>
+      <rect x="32" y="74" width="22" height="5" rx="2.5" fill="#fff" opacity="0.6"/>
+    </svg>
+  </template>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+  <script type="text/babel" src="tweaks-panel.jsx"></script>
+  <script type="text/babel" src="icons.jsx"></script>
+  <script type="text/babel" src="data.jsx"></script>
+  <script type="text/babel" src="components.jsx"></script>
+  <script type="text/babel" src="animations.jsx"></script>
+  <script type="text/babel" src="screens.jsx"></script>
+  <script type="text/babel" src="screens2.jsx"></script>
+  <script type="text/babel" src="screens3.jsx"></script>
+  <script type="text/babel" src="screens4.jsx"></script>
+  <script type="text/babel" src="screens5.jsx"></script>
+  <script type="text/babel" src="app.jsx"></script>
+</body>
+</html>

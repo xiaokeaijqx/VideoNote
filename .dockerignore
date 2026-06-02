@@ -1,0 +1,35 @@
+# Git 和 IDE
+.git
+.github
+.idea/
+.vscode/
+.DS_Store
+
+# Tauri 构建产物（非常大）
+VideoMemo_frontend/src-tauri/target
+VideoMemo_frontend/src-tauri/bin
+
+# 运行时数据
+backend/data
+backend/static
+backend/models
+backend/logs
+backend/uploads
+backend/*.db
+backend/note_results
+backend/bin/
+
+# 依赖和构建缓存
+node_modules/
+__pycache__/
+*.py[cod]
+dist/
+build/
+*.tar
+*.egg-info/
+
+# 环境文件
+.env
+.env.local
+.env.*.local
+!.env.example
