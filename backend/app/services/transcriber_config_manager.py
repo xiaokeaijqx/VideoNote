@@ -32,15 +32,23 @@ class TranscriberConfigManager:
         页主动切换。
         """
         data = self._read()
+        ttype = data.get(
+            "transcriber_type",
+            os.getenv("TRANSCRIBER_TYPE", "fast-whisper"),
+        )
+        size = data.get(
+            "whisper_model_size",
+            os.getenv("WHISPER_MODEL_SIZE", "tiny"),
+        )
+        # 防御：存储/环境变量里的值不在可选列表时回退到第一个，
+        # 避免前端下拉框初始化为空或指向不存在的引擎/模型
+        if ttype not in ("fast-whisper", "bcut", "kuaishou", "groq", "mlx-whisper"):
+            ttype = "fast-whisper"
+        if size not in ("tiny", "base", "small", "medium", "large-v3", "large-v3-turbo"):
+            size = "tiny"
         return {
-            "transcriber_type": data.get(
-                "transcriber_type",
-                os.getenv("TRANSCRIBER_TYPE", "fast-whisper"),
-            ),
-            "whisper_model_size": data.get(
-                "whisper_model_size",
-                os.getenv("WHISPER_MODEL_SIZE", "tiny"),
-            ),
+            "transcriber_type": ttype,
+            "whisper_model_size": size,
         }
 
     def update_config(

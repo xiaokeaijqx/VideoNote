@@ -5,7 +5,8 @@
     "type": "built-in",
     "logo": "OpenAI",
     "api_key": "",
-    "base_url": "https://api.openai.com/v1"
+    "base_url": "https://api.openai.com/v1",
+    "enabled": 0
   },
   {
     "id": "deepseek",
@@ -13,7 +14,8 @@
     "type": "built-in",
     "logo": "DeepSeek",
     "api_key": "",
-    "base_url": "https://api.deepseek.com"
+    "base_url": "https://api.deepseek.com",
+    "enabled": 1
   },
   {
     "id": "qwen",
@@ -21,15 +23,17 @@
     "type": "built-in",
     "logo": "Qwen",
     "api_key": "",
-    "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    "enabled": 0
   },
-    {
+  {
     "id": "Claude",
     "name": "Claude",
     "type": "built-in",
     "logo": "Claude",
     "api_key": "",
-    "base_url": "https://"
+    "base_url": "https://",
+    "enabled": 0
   },
   {
     "id": "gemini",
@@ -37,22 +41,25 @@
     "type": "built-in",
     "logo": "Gemini",
     "api_key": "",
-    "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/"
+    "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
+    "enabled": 0
   },
-    {
+  {
     "id": "groq",
     "name": "Groq",
     "type": "built-in",
     "logo": "Groq",
     "api_key": "",
-    "base_url": "https://api.groq.com/openai/v1"
+    "base_url": "https://api.groq.com/openai/v1",
+    "enabled": 0
   },
-      {
+  {
     "id": "ollama",
     "name": "ollama",
     "type": "built-in",
     "logo": "Ollama",
     "api_key": "",
-    "base_url": "http://127.0.0.1:11434/v1"
+    "base_url": "http://127.0.0.1:11434/v1",
+    "enabled": 0
   }
 ]

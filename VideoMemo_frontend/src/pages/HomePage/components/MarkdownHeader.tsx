@@ -215,8 +215,8 @@ export function MarkdownHeader({
         )}
       </div>
 
-      {/* 右侧操作按钮 */}
-      <div className="flex items-center gap-1">
+      {/* 右侧操作按钮：ml-auto 保证窗口窄、flex-wrap 换行后依然贴右边 */}
+      <div className="ml-auto flex items-center gap-1">
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>

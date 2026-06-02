@@ -1,0 +1,21 @@
+<svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!--
+    macOS 专用：圆角方块按 Apple 模板占画布约 80.5%（824/1024），四周透明留白。
+    不留白的满幅图标在 Dock 里会比其他 app 大一圈。
+    仅用于生成 icon.icns；其他平台（Windows/Android/favicon）继续用满幅的 icon.svg。
+  -->
+  <defs>
+    <linearGradient id="vm-bg" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#3B82F6"/>
+      <stop offset="1" stop-color="#8B5CF6"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(6.25 6.25) scale(0.8047)">
+    <rect width="64" height="64" rx="15" fill="url(#vm-bg)"/>
+    <path d="M14 18 L14 30 L24 24 Z" fill="#ffffff"/>
+    <rect x="30" y="20.4" width="20" height="3.4" rx="1.7" fill="#ffffff"/>
+    <rect x="14" y="34" width="36" height="3.4" rx="1.7" fill="#ffffff" fill-opacity="0.8"/>
+    <rect x="14" y="42" width="36" height="3.4" rx="1.7" fill="#ffffff" fill-opacity="0.8"/>
+    <rect x="14" y="50" width="24" height="3.4" rx="1.7" fill="#ffffff" fill-opacity="0.8"/>
+  </g>
+</svg>
