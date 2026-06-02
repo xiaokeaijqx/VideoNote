@@ -14,7 +14,7 @@ import {
 import { BrandMark } from '@/components/design/BrandMark'
 import { useVmLang } from '@/i18n/redesign'
 
-const REPO_URL = 'https://github.com/xiaokeaijqx/videoMemo'
+const REPO_URL = 'https://github.com/xiaokeaijqx/VideoNote'
 const RELEASES_URL = `${REPO_URL}/releases`
 
 interface Feat {

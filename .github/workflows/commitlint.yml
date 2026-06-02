@@ -27,4 +27,4 @@ jobs:
         with:
           configFile: .commitlintrc.json
           failOnWarnings: false
-          helpURL: https://github.com/xiaokeaijqx/videoMemo/blob/develop/CONTRIBUTING.md#5-提交规范
+          helpURL: https://github.com/xiaokeaijqx/VideoNote/blob/develop/CONTRIBUTING.md#5-提交规范

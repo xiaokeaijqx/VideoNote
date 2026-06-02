@@ -1,6 +1,6 @@
 <div align="center">
   <img src="./doc/icon.svg" alt="VideoMemo Logo" width="64" height="64" />
-  <h1>VideoMemo v2.3.4</h1>
+  <h1>VideoMemo v2.3.5</h1>
   <p><i>把视频变成结构化的 AI 笔记 —— 一个开源、可扩展、可桌面化的视频备忘工具</i></p>
 
   <p>
@@ -63,8 +63,8 @@
 ### 方式一：Docker 部署（推荐）
 
 ```bash
-git clone https://github.com/xiaokeaijqx/videoMemo.git
-cd videoMemo
+git clone https://github.com/xiaokeaijqx/VideoNote.git
+cd VideoNote
 cp .env.example .env
 
 # 标准部署
@@ -80,8 +80,8 @@ docker compose -f docker-compose.gpu.yml up --build -d
 
 ```bash
 # 1. 克隆仓库
-git clone https://github.com/xiaokeaijqx/videoMemo.git
-cd videoMemo
+git clone https://github.com/xiaokeaijqx/VideoNote.git
+cd VideoNote
 cp .env.example .env
 
 # 2. 启动后端（FastAPI · Python 3.11）
@@ -98,7 +98,7 @@ pnpm dev                          # 开发服务器 http://localhost:3015
 
 ### 方式三：桌面客户端
 
-去 [Releases](https://github.com/xiaokeaijqx/videoMemo/releases) 下载安装包，开箱即用，内置 Python 后端，无需自己配环境。
+去 [Releases](https://github.com/xiaokeaijqx/VideoNote/releases) 下载安装包，开箱即用，内置 Python 后端，无需自己配环境。
 
 - **Windows**：请安装到**没有中文、没有空格**的路径，否则 PyInstaller sidecar 启动会失败。
 - **macOS（Apple Silicon）**：应用未做 Apple 签名 / 公证，首次打开可能被系统拦下：

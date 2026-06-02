@@ -71,7 +71,7 @@ push tag **会自动触发 [`.github/workflows/release-extension.yml`](.github/w
 
 CI 默认会创建 / 更新 `vX.Y.Z` 对应的 Release。如果你想自己写 release notes：
 
-1. 打开 https://github.com/xiaokeaijqx/videoMemo/releases/new
+1. 打开 https://github.com/xiaokeaijqx/VideoNote/releases/new
 2. Tag: 选 `vX.Y.Z`
 3. Title: `vX.Y.Z`
 4. Body: 直接贴 [`CHANGELOG.md`](./CHANGELOG.md) 的对应段
@@ -121,7 +121,7 @@ git branch -d release/X.Y.Z
 
 `.github/workflows/release-extension.yml` 末尾有三段商店自动发布的 job 注释。要启用：
 
-1. 在 https://github.com/xiaokeaijqx/videoMemo/settings/secrets/actions 加 secrets：
+1. 在 https://github.com/xiaokeaijqx/VideoNote/settings/secrets/actions 加 secrets：
 
 | 商店 | 需要的 secret |
 |---|---|
@@ -157,5 +157,5 @@ git checkout -b hotfix/<scope>-<事项>
 
 | Version | Date | Tag |
 |---|---|---|
-| 2.1.0 | 2026-05-07 | [`v2.1.0`](https://github.com/xiaokeaijqx/videoMemo/releases/tag/v2.1.0) |
-| 2.0.0 | (上游 web 端 v2.0.0) | [`v2.0.0`](https://github.com/xiaokeaijqx/videoMemo/releases/tag/v2.0.0) |
+| 2.1.0 | 2026-05-07 | [`v2.1.0`](https://github.com/xiaokeaijqx/VideoNote/releases/tag/v2.1.0) |
+| 2.0.0 | (上游 web 端 v2.0.0) | [`v2.0.0`](https://github.com/xiaokeaijqx/VideoNote/releases/tag/v2.0.0) |

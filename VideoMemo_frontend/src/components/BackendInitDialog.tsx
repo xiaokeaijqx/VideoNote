@@ -118,7 +118,7 @@ function BackendInitDialog({ open, failed = false, lastError = null, onRetry }: 
             <p className="text-xs text-muted-foreground pt-2">
               仍然无法解决？复制日志去&nbsp;
               <a
-                href="https://github.com/xiaokeaijqx/videoMemo/issues"
+                href="https://github.com/xiaokeaijqx/VideoNote/issues"
                 target="_blank"
                 rel="noreferrer"
                 className="text-blue-600 underline"

@@ -87,7 +87,7 @@ body:
     attributes:
       label: 提交前自查
       options:
-        - label: 我已搜索过 [Issues](https://github.com/xiaokeaijqx/videoMemo/issues?q=)，确认不是重复问题
+        - label: 我已搜索过 [Issues](https://github.com/xiaokeaijqx/VideoNote/issues?q=)，确认不是重复问题
           required: true
         - label: 我提供的日志中**不**包含 API key、cookie、SESSDATA 等敏感信息
           required: true
