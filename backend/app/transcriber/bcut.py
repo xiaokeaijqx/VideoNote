@@ -29,6 +29,32 @@ API_QUERY_RESULT = API_BASE_URL + "/task/result"
 
 logger = get_logger(__name__)
 
+
+def _bilibili_cookie() -> Optional[str]:
+    """读取「下载配置」里保存的 B 站 Cookie（没有则返回 None）。"""
+    try:
+        from app.services.cookie_manager import CookieConfigManager
+        return CookieConfigManager().get("bilibili")
+    except Exception:
+        return None
+
+
+def _with_cookie_hint(msg: str) -> str:
+    """bcut 是 B 站的接口，未带 B 站 Cookie 时容易被风控拒绝（如「第三方服务异常」）。
+
+    未配置 Cookie 时在报错后面追加可行动的提示；已配置则原样返回。
+    """
+    if "下载配置" in msg:  # 已带提示，保持幂等
+        return msg
+    if _bilibili_cookie():
+        return msg
+    return (
+        f"{msg}。bcut（必剪）转写走的是 B 站接口，未配置 B 站 Cookie 时容易被风控拒绝："
+        "请在「设置 → 下载配置」中填写 B 站 Cookie 后重试，"
+        "或在「设置 → 音频转写配置」中切换为本地转写引擎（fast-whisper / mlx-whisper）。"
+    )
+
+
 class BcutTranscriber(Transcriber):
     """必剪 语音识别接口"""
     headers = {
@@ -38,6 +64,10 @@ class BcutTranscriber(Transcriber):
 
     def __init__(self):
         self.session = requests.Session()
+        # 带上「下载配置」里的 B 站 Cookie（如有），降低被 B 站风控拒绝的概率
+        cookie = _bilibili_cookie()
+        if cookie:
+            self.headers = {**self.headers, 'Cookie': cookie}
         self.task_id = None
         self.__etags = []
 
@@ -241,7 +271,8 @@ class BcutTranscriber(Transcriber):
             
         except Exception as e:
             logger.error(f"B站ASR处理失败: {str(e)}")
-            raise
+            # 未配置 B 站 Cookie 时附加「去下载配置填 Cookie / 换本地转写引擎」的提示
+            raise Exception(_with_cookie_hint(str(e))) from e
 
     def on_finish(self, video_path: str, result: TranscriptResult) -> None:
         """转录完成的回调"""
