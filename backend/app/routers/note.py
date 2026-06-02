@@ -581,30 +581,8 @@ def task_control_endpoint(data: TaskControlRequest):
     return R.error(msg="无效的操作")
 
 
-def _pick_referer(image_url: str) -> str:
-    """
-    根据图片 URL 的 host 选择合适的 Referer。
-    各平台（B 站 / YouTube / 抖音 / 小红书）的 CDN 都做了 Referer 校验：
-    用错了 Referer 会被 403。之前硬编码 bilibili.com，所以 XHS / YouTube 封面都加载失败。
-    """
-    try:
-        from urllib.parse import urlparse
-        host = (urlparse(image_url).hostname or "").lower()
-    except Exception:
-        return ""
-
-    if any(s in host for s in ("bilibili", "hdslb", "biliimg")):
-        return "https://www.bilibili.com/"
-    if any(s in host for s in ("youtube", "ytimg", "ggpht", "googlevideo")):
-        return "https://www.youtube.com/"
-    if any(s in host for s in ("xiaohongshu", "xhscdn", "xhslink")):
-        return "https://www.xiaohongshu.com/"
-    if any(s in host for s in ("douyin", "douyinpic", "douyinvod", "iesdouyin", "amemv")):
-        return "https://www.douyin.com/"
-    if "kuaishou" in host or "yximgs" in host:
-        return "https://www.kuaishou.com/"
-    # 其它平台不发 Referer，让服务器决定。
-    return ""
+# Referer 选择逻辑移到 cover_helper 统一维护（image_proxy 与笔记生成时的封面本地化共用）
+from app.utils.cover_helper import pick_referer as _pick_referer
 
 
 @router.get("/image_proxy")

@@ -41,6 +41,9 @@ pyinstaller ^
   --hidden-import uvicorn ^
   --hidden-import fastapi ^
   --hidden-import starlette ^
+  --hidden-import chromadb.api.rust ^
+  --collect-all chromadb ^
+  --collect-all chromadb_rust_bindings ^
   --exclude-module torch ^
   --exclude-module torchvision ^
   --exclude-module torchaudio ^

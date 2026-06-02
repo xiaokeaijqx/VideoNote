@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ExternalLink } from 'lucide-react'
 import type { AudioMeta } from '@/store/taskStore'
+import { coverCandidates } from '@/utils/cover'
 
 interface VideoBannerProps {
   audioMeta?: AudioMeta
@@ -16,14 +17,15 @@ const platformLabel: Record<string, string> = {
 }
 
 export default function VideoBanner({ audioMeta, videoUrl }: VideoBannerProps) {
-  // 图片加载失败时回退到渐变背景，不显示破图占位 + alt 文字。
-  const [coverBroken, setCoverBroken] = useState(false)
+  // 封面按候选顺序尝试（本地化路径 → https 直链 → image_proxy），与左侧 NoteThumb
+  // 同一套逻辑（@/utils/cover）；全部失败回退到渐变背景，不显示破图占位 + alt 文字。
+  const candidates = coverCandidates(audioMeta?.cover_url)
+  const [coverIdx, setCoverIdx] = useState(0)
+  useEffect(() => setCoverIdx(0), [audioMeta?.cover_url])
 
   if (!audioMeta) return null
 
-  // 直接拿 cover_url，配合 <img referrerPolicy="no-referrer">；与左侧 NoteThumb 同
-  // 一招——XHS / B 站 / YouTube CDN 都允许「无 Referer」拉图，不走 image_proxy。
-  const coverUrl = !coverBroken ? audioMeta.cover_url || '' : ''
+  const coverUrl = coverIdx < candidates.length ? candidates[coverIdx] : ''
   const title = audioMeta.title
   const uploader = audioMeta.raw_info?.uploader || ''
   const platform = platformLabel[audioMeta.platform] || audioMeta.platform || ''
@@ -38,7 +40,7 @@ export default function VideoBanner({ audioMeta, videoUrl }: VideoBannerProps) {
             src={coverUrl}
             alt=""
             referrerPolicy="no-referrer"
-            onError={() => setCoverBroken(true)}
+            onError={() => setCoverIdx(i => (i === coverIdx ? i + 1 : i))}
             className="h-full w-full scale-110 object-cover blur-md brightness-[0.4]"
           />
         )}
@@ -52,7 +54,7 @@ export default function VideoBanner({ audioMeta, videoUrl }: VideoBannerProps) {
             src={coverUrl}
             alt=""
             referrerPolicy="no-referrer"
-            onError={() => setCoverBroken(true)}
+            onError={() => setCoverIdx(i => (i === coverIdx ? i + 1 : i))}
             className="h-16 w-28 shrink-0 rounded-md object-cover shadow-md"
           />
         )}

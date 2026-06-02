@@ -14,6 +14,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip.tsx'
 import LazyImage from "@/components/LazyImage.tsx";
+import { coverCandidates } from '@/utils/cover'
 import {FC, useState, useEffect, useMemo} from 'react'
 
 interface NoteHistoryProps {
@@ -24,8 +25,6 @@ interface NoteHistoryProps {
 const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
   const tasks = useTaskStore(state => state.tasks)
   const removeTask = useTaskStore(state => state.removeTask)
-  // 确保baseURL没有尾部斜杠
-  const baseURL = (String(import.meta.env.VITE_API_BASE_URL || 'api')).replace(/\/$/, '')
   const [rawSearch, setRawSearch] = useState('')
   const [search, setSearch] = useState('')
   const fuse = useMemo(() => new Fuse(tasks, {
@@ -88,23 +87,16 @@ const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
             <div
               className={cn('flex items-center gap-4')}
             >
-              {/* 封面图 */}
+              {/* 封面图：统一走 @/utils/cover 解析（本地化路径拼后端源 / http 直链走代理） */}
               {task.platform === 'local' ? (
                 <img
-                  src={
-                    task.audioMeta.cover_url ? `${task.audioMeta.cover_url}` : '/placeholder.png'
-                  }
+                  src={coverCandidates(task.audioMeta.cover_url)[0] || '/placeholder.png'}
                   alt="封面"
                   className="h-10 w-12 rounded-md object-cover"
                 />
               ) : (
                   <LazyImage
-
-                      src={
-                        task.audioMeta.cover_url
-                            ? `${baseURL}/image_proxy?url=${encodeURIComponent(task.audioMeta.cover_url)}`
-                            : '/placeholder.png'
-                      }
+                      src={coverCandidates(task.audioMeta.cover_url)[0] || '/placeholder.png'}
                       alt="封面"
                   />
               )}

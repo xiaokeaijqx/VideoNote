@@ -1,6 +1,7 @@
 import JSZip from 'jszip'
 import type { Task } from '@/store/taskStore'
 import type { Collection } from '@/store/collectionStore'
+import { coverCandidates } from '@/utils/cover'
 
 /** 取笔记最新版本的 markdown 文本（兼容 string 与 Markdown[] 两种历史格式）。 */
 export function getNoteText(task: Task): string {
@@ -15,12 +16,12 @@ export function getNoteTitle(task: Task): string {
 }
 
 /**
- * 笔记封面地址。直接返回原始 URL；前端的 `<img>` 必须配合 `referrerPolicy="no-referrer"`，
- * 这样 B 站 / YouTube / XHS 等 CDN 接受「无 Referer」请求，不需要走 image_proxy
- * （image_proxy 那条路对 XHS 经常 403，左侧 NoteThumb 已经验证「直链 + no-referrer」是稳的）。
+ * 笔记封面地址。走 @/utils/cover 统一解析：本地化路径（/static/covers/...）拼后端源、
+ * http 直链改走 image_proxy（桌面端 mixed content 拦截）、https 直链保持直连
+ * （配合 `referrerPolicy="no-referrer"`，XHS 等 CDN 接受「无 Referer」请求）。
  */
 export function getCoverSrc(task: Task): string {
-  return task.audioMeta?.cover_url || '/placeholder.png'
+  return coverCandidates(task.audioMeta?.cover_url)[0] || '/placeholder.png'
 }
 
 /** 文件名安全化：去掉非法字符。 */

@@ -32,6 +32,7 @@ from app.services.constant import SUPPORT_PLATFORM_MAP
 from app.services.provider import ProviderService
 from app.transcriber.base import Transcriber
 from app.transcriber.transcriber_provider import get_transcriber, _transcribers
+from app.utils.cover_helper import localize_cover
 from app.utils.note_helper import replace_content_markers, prepend_source_link
 from app.utils.path_helper import get_runtime_dir
 from app.utils.screenshot_marker import extract_screenshot_timestamps
@@ -68,6 +69,64 @@ IMAGE_BASE_URL = os.getenv("IMAGE_BASE_URL", "/static/screenshots")
 # 日志配置
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
+
+# ─── 下载失败的友好提示（Cookie 相关） ───────────────────────────────
+# 平台中文名（用于错误提示）
+_PLATFORM_LABELS = {
+    "bilibili": "B站",
+    "youtube": "YouTube",
+    "douyin": "抖音",
+    "kuaishou": "快手",
+    "xiaohongshu": "小红书",
+}
+
+# 这些平台没配 Cookie 时下载/解析大概率失败
+_COOKIE_RECOMMENDED_PLATFORMS = {"douyin", "kuaishou", "xiaohongshu", "bilibili"}
+
+# 报错信息中出现这些特征词时，多半与登录态 / Cookie 有关
+_COOKIE_ERROR_SIGNALS = (
+    "cookie", "Cookie", "COOKIE",
+    "登录", "登陆", "login", "Login", "Sign in", "sign in",
+    "大会员", "Premium", "members-only", "member only",
+    "412", "403", "Forbidden", "风控",
+)
+
+# 已翻译过的提示都带这个标记，避免二次翻译
+_COOKIE_HINT_MARK = "「设置 → 下载配置」"
+
+
+def friendly_download_error(exc: Exception, platform: str) -> str:
+    """把下载/解析阶段的报错翻译成用户能行动的提示。
+
+    - 平台未设置 Cookie，且（平台强依赖 Cookie 或报错带登录特征）→ 提示去配置 Cookie；
+    - 已设置 Cookie 但报错带登录特征 → 提示 Cookie 可能已失效；
+    - 其余情况原样返回，并保留原始错误便于排查。
+    """
+    raw = str(getattr(exc, "message", None) or exc)
+    if _COOKIE_HINT_MARK in raw:  # 幂等：已翻译过的不再处理
+        return raw
+
+    try:
+        from app.services.cookie_manager import CookieConfigManager
+        cfm = CookieConfigManager()
+        configured = bool(cfm.get(platform) or cfm.get_browser(platform))
+    except Exception:
+        configured = True  # 读不到配置时宁可不提示，也不要误报「未设置」
+
+    label = _PLATFORM_LABELS.get(platform, platform or "该平台")
+    has_signal = any(s in raw for s in _COOKIE_ERROR_SIGNALS)
+
+    if not configured and (platform in _COOKIE_RECOMMENDED_PLATFORMS or has_signal):
+        return (
+            f"{label}下载/解析失败，可能是未设置 Cookie 导致：请到「设置 → 下载配置」"
+            f"为{label}配置 Cookie 后重试。（原始错误：{raw[:300]}）"
+        )
+    if configured and has_signal:
+        return (
+            f"{label}的 Cookie 可能已失效或权限不足：请到「设置 → 下载配置」"
+            f"更新{label}的 Cookie 后重试。（原始错误：{raw[:300]}）"
+        )
+    return raw
 
 
 class NoteGenerator:
@@ -201,6 +260,14 @@ class NoteGenerator:
                 grid_size=grid_size,
                 skip_download=not need_full_download,
             )
+
+            # 封面本地化：B 站封面是 http 直链（桌面端 WebView 按 mixed content 拦截）、
+            # 抖音/快手是限时签名 URL（过期 404）。下载到 /static/covers 后存稳定相对路径，
+            # 失败则保留原始 URL，由前端直链 + 代理兜底。
+            if audio_meta.cover_url and str(audio_meta.cover_url).startswith("http"):
+                local_cover = localize_cover(audio_meta.cover_url, platform)
+                if local_cover:
+                    audio_meta.cover_url = local_cover
 
             # 暂停门（步骤2→3）：下载完成后、转写前可暂停
             self._gate(task_id, TaskStatus.DOWNLOADING)
@@ -530,8 +597,9 @@ class NoteGenerator:
                     logger.info("未指定 grid_size，跳过缩略图生成")
             except Exception as exc:
                 logger.error(f"视频下载失败：{exc}")
-                self._handle_exception(task_id, exc)
-                raise
+                friendly = friendly_download_error(exc, platform)
+                self._handle_exception(task_id, RuntimeError(friendly))
+                raise RuntimeError(friendly) from exc
 
         # 下载音频
         try:
@@ -547,8 +615,9 @@ class NoteGenerator:
             return audio
         except Exception as exc:
             logger.error(f"音频下载失败：{exc}")
-            self._handle_exception(task_id, exc)
-            raise
+            friendly = friendly_download_error(exc, platform)
+            self._handle_exception(task_id, RuntimeError(friendly))
+            raise RuntimeError(friendly) from exc
 
 
     def _get_transcript(
