@@ -33,7 +33,7 @@ from app.services.provider import ProviderService
 from app.transcriber.base import Transcriber
 from app.transcriber.transcriber_provider import get_transcriber, _transcribers
 from app.utils.cover_helper import localize_cover
-from app.utils.note_helper import replace_content_markers, prepend_source_link
+from app.utils.note_helper import replace_content_markers, prepend_source_link, normalize_toc
 from app.utils.path_helper import get_runtime_dir
 from app.utils.screenshot_marker import extract_screenshot_timestamps
 from app.utils.status_code import StatusCode
@@ -327,6 +327,8 @@ class NoteGenerator:
                     platform=platform,
                 )
 
+            # 目录区块确定性整形：LLM 偶尔把 ## 标记抄进目录条目 / 生成嵌套子项
+            markdown = normalize_toc(markdown)
             markdown = prepend_source_link(markdown, str(video_url))
 
             # 5. 保存记录到数据库
@@ -790,7 +792,8 @@ class NoteGenerator:
         )
         markdown = gpt.summarize(source)
         logger.info(f"repolish 完成 task_id={task_id} style={style}")
-        return markdown
+        # 润色版同样做目录区块整形
+        return normalize_toc(markdown)
 
     def _summarize_text(
         self,
