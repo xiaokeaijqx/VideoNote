@@ -141,10 +141,22 @@ class NoteGenerator:
         self.model_size: str = config_manager.get_whisper_model_size()
         self.device: Optional[str] = None
         self.transcriber_type: str = config_manager.get_transcriber_type()
-        self.transcriber: Transcriber = self._init_transcriber()
+        self._transcriber: Optional[Transcriber] = None
         self.video_path: Optional[Path] = None
         self.video_img_urls=[]
         logger.info("NoteGenerator 初始化完成")
+
+    @property
+    def transcriber(self) -> Transcriber:
+        """懒加载转写器：仅在真正需要转写时才初始化。
+
+        NoteGenerator 还被用于写任务状态、删除笔记、润色等轻量操作；
+        之前在 __init__ 里 eager 初始化，配置了不可用引擎（如 mlx-whisper
+        未安装）时，连 /generate_note 写 PENDING 状态都会直接 500。
+        """
+        if self._transcriber is None:
+            self._transcriber = self._init_transcriber()
+        return self._transcriber
 
 
     # ---------------- 公有方法 ----------------

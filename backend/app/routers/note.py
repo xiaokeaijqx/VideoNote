@@ -499,7 +499,11 @@ def generate_note(data: VideoRequest, background_tasks: BackgroundTasks):
                                   data.extras, data.video_understanding, data.video_interval, data.grid_size)
         return R.success({"task_id": task_id})
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        # 用业务错误格式返回（而不是 HTTPException 500）：
+        # 前端拦截器读的是 msg 字段，500 的 detail 会被吞成笼统的「服务器错误，请稍后再试」，
+        # 用户看不到「转写引擎不可用，请安装/切换」这类可行动的原因。
+        logger.error(f"generate_note 入口失败: {e}", exc_info=True)
+        return R.error(msg=str(e))
 
 
 @router.get("/task_status/{task_id}")

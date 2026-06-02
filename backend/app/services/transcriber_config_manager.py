@@ -84,6 +84,23 @@ class TranscriberConfigManager:
         if ttype not in ("fast-whisper", "mlx-whisper"):
             return result  # 在线引擎无需本地模型
 
+        # mlx-whisper 还要求引擎本身可用（包已安装且原生库能加载）。
+        # 配置可能是在引擎可用时保存的，之后换了环境/重装应用就失效了——
+        # 在这里拦下并给出可行动的指引，而不是让 NoteGenerator 初始化时 500。
+        if ttype == "mlx-whisper":
+            try:
+                from app.transcriber.transcriber_provider import MLX_WHISPER_AVAILABLE
+            except Exception:
+                MLX_WHISPER_AVAILABLE = True  # 检查不了就放行，交给后续流程报错
+            if not MLX_WHISPER_AVAILABLE:
+                result["ready"] = False
+                result["reason"] = (
+                    "MLX Whisper 引擎当前不可用（未安装或本机不支持）。"
+                    "请到「设置 → 音频转写配置」按页面提示安装 mlx_whisper 后重启应用，"
+                    "或切换到其他转写引擎。"
+                )
+                return result
+
         # 延迟 import 避免与 routers.config 的循环依赖；只取纯函数，不触发路由副作用
         try:
             from app.routers.config import (
