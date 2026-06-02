@@ -6,10 +6,11 @@
     </linearGradient>
   </defs>
   <!-- 圆角底 + 渐变色 -->
-  <rect width="64" height="64" rx="14" fill="url(#vm-bg)"/>
-  <!-- 中央播放三角：视频 -->
-  <path d="M24 14 L24 36 L43 25 Z" fill="#ffffff"/>
-  <!-- 下方两条线：备忘 / 笔记 -->
-  <rect x="14" y="44" width="36" height="3" rx="1.5" fill="#ffffff" fill-opacity="0.9"/>
-  <rect x="14" y="51" width="24" height="3" rx="1.5" fill="#ffffff" fill-opacity="0.7"/>
+  <rect width="64" height="64" rx="15" fill="url(#vm-bg)"/>
+  <!-- 笔记列表：第一条的 bullet 是播放按钮（视频 → 笔记） -->
+  <path d="M14 18 L14 30 L24 24 Z" fill="#ffffff"/>
+  <rect x="30" y="20.4" width="20" height="3.4" rx="1.7" fill="#ffffff"/>
+  <rect x="14" y="34" width="36" height="3.4" rx="1.7" fill="#ffffff" fill-opacity="0.8"/>
+  <rect x="14" y="42" width="36" height="3.4" rx="1.7" fill="#ffffff" fill-opacity="0.8"/>
+  <rect x="14" y="50" width="24" height="3.4" rx="1.7" fill="#ffffff" fill-opacity="0.8"/>
 </svg>
