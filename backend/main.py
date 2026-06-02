@@ -1,5 +1,21 @@
 import os
+import sys
 from contextlib import asynccontextmanager
+from pathlib import Path
+
+# ─── 插件目录（必须在 import app.* 之前执行）────────────────────────────
+# 桌面端（PyInstaller 冻结）读不到系统 site-packages。把用户插件目录加进
+# sys.path，让用户可以自装可选依赖（如 mlx_whisper）：
+#   python3.11 -m pip install --target "<插件目录>" mlx_whisper
+# PyInstaller 的 FrozenImporter 优先于 sys.path，内置包不会被插件目录覆盖，
+# 插件目录只补「包里没有」的模块。安装后重启应用生效。
+if getattr(sys, "frozen", False):
+    _plugin_dir = os.path.join(
+        os.getenv("APPDATA") or str(Path.home()), "VideoMemo", "python-packages"
+    )
+    os.makedirs(_plugin_dir, exist_ok=True)
+    if _plugin_dir not in sys.path:
+        sys.path.insert(0, _plugin_dir)
 
 import uvicorn
 from fastapi import FastAPI

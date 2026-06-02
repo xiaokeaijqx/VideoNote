@@ -101,14 +101,35 @@ WHISPER_MODEL_SIZES = ["tiny", "base", "small", "medium", "large-v3", "large-v3-
 
 @router.get("/transcriber_config")
 def get_transcriber_config():
+    import sys
     from app.transcriber.transcriber_provider import MLX_WHISPER_AVAILABLE
 
     config = transcriber_config_manager.get_config()
+
+    # mlx_whisper 不可用时给前端精确的安装指引：
+    # - 桌面端（冻结）：装到插件目录（main.py 启动时已加进 sys.path），必须用 Python 3.11
+    # - 源码/Docker：直接装进后端环境
+    if getattr(sys, "frozen", False):
+        from app.utils.path_helper import get_plugin_packages_dir
+        plugin_dir = get_plugin_packages_dir()
+        mlx_install_command = f'python3.11 -m pip install --target "{plugin_dir}" mlx_whisper'
+        mlx_install_note = (
+            "桌面版应用内置 Python 3.11，必须用同版本 Python 安装（macOS 可先 "
+            "brew install python@3.11）。安装完成后重启应用生效。"
+        )
+    else:
+        plugin_dir = ""
+        mlx_install_command = "pip install mlx_whisper"
+        mlx_install_note = "安装到后端运行环境（venv）后重启后端生效。"
+
     return R.success(data={
         **config,
         "available_types": AVAILABLE_TRANSCRIBER_TYPES,
         "whisper_model_sizes": WHISPER_MODEL_SIZES,
         "mlx_whisper_available": MLX_WHISPER_AVAILABLE,
+        "mlx_install_command": mlx_install_command,
+        "mlx_install_note": mlx_install_note,
+        "mlx_plugin_dir": plugin_dir,
     })
 
 

@@ -6,6 +6,12 @@ export interface TranscriberConfig {
   available_types: { value: string; label: string }[]
   whisper_model_sizes: string[]
   mlx_whisper_available: boolean
+  /** mlx_whisper 不可用时的精确安装命令（桌面端是 pip --target 插件目录） */
+  mlx_install_command?: string
+  /** 安装命令的补充说明（Python 版本要求、生效方式） */
+  mlx_install_note?: string
+  /** 桌面端插件目录绝对路径（源码模式为空串） */
+  mlx_plugin_dir?: string
 }
 
 export interface ModelStatus {

@@ -50,6 +50,23 @@ def get_app_dir(subdir: str = "") -> str:
     return full_path
 
 
+def get_plugin_packages_dir() -> str:
+    """用户自装 Python 包的「插件目录」（桌面端可选依赖如 mlx_whisper 装这里）。
+
+    打包后的应用是冻结的 Python 3.11，读不到系统 site-packages。
+    main.py 启动时会把该目录加进 sys.path（PyInstaller 内置包优先，
+    插件目录只补缺失的包），用户用 Python 3.11 安装后重启应用即可生效：
+
+        python3.11 -m pip install --target "<本目录>" mlx_whisper
+
+    与 get_model_dir 同一基准目录（macOS: ~/VideoMemo，Windows: %APPDATA%/VideoMemo）。
+    """
+    base_dir = os.path.join(os.getenv("APPDATA") or str(Path.home()), "VideoMemo")
+    path = os.path.join(base_dir, "python-packages")
+    os.makedirs(path, exist_ok=True)
+    return path
+
+
 def get_runtime_dir(name: str) -> str:
     """对外提供静态资源（static/uploads）的根目录，保证「写入」与「服务」同源。
 

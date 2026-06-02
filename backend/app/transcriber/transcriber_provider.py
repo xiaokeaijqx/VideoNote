@@ -97,9 +97,19 @@ def get_transcriber(transcriber_type="fast-whisper", model_size="base", device="
 
     elif transcriber_enum == TranscriberType.MLX_WHISPER:
         if not MLX_WHISPER_AVAILABLE:
+            import sys
+            if getattr(sys, "frozen", False):
+                from app.utils.path_helper import get_plugin_packages_dir
+                hint = (
+                    f'请在终端执行：python3.11 -m pip install --target '
+                    f'"{get_plugin_packages_dir()}" mlx_whisper（需要 Python 3.11），'
+                    "安装后重启应用生效；"
+                )
+            else:
+                hint = "请安装 mlx_whisper 包（pip install mlx_whisper）后重启后端；"
             raise RuntimeError(
-                "MLX Whisper 不可用：需要 macOS 平台并安装 mlx_whisper 包 (pip install mlx_whisper)。"
-                "请在「音频转写配置」页面切换到其他转写引擎。"
+                f"MLX Whisper 不可用：需要 macOS（Apple Silicon）平台。{hint}"
+                "或在「音频转写配置」页面切换到其他转写引擎。"
             )
         return get_mlx_whisper_transcriber(whisper_model_size)
 

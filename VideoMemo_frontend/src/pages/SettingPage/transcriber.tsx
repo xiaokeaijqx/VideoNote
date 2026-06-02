@@ -204,9 +204,30 @@ export default function Transcriber() {
             <Alert variant="warning" className="text-sm">
               <AlertTriangle className="h-4 w-4" />
               <AlertDescription>
-                MLX Whisper 当前不可用。需要 macOS 平台并安装{' '}
-                <code className="rounded bg-neutral-100 px-1">pip install mlx_whisper</code>，
-                安装后重启后端生效。
+                <p className="font-medium">MLX Whisper 当前不可用（需要 macOS + Apple Silicon）</p>
+                <p className="mt-2">在「终端」中执行以下命令安装：</p>
+                <div className="mt-1 flex items-start gap-2">
+                  <code className="block flex-1 rounded bg-neutral-100 px-2 py-1.5 text-xs break-all select-all">
+                    {config.mlx_install_command || 'pip install mlx_whisper'}
+                  </code>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="shrink-0"
+                    onClick={() => {
+                      navigator.clipboard
+                        .writeText(config.mlx_install_command || 'pip install mlx_whisper')
+                        .then(() => toast.success('命令已复制'))
+                        .catch(() => toast.error('复制失败，请手动选择复制'))
+                    }}
+                  >
+                    复制命令
+                  </Button>
+                </div>
+                {config.mlx_install_note && (
+                  <p className="mt-2 text-xs text-neutral-500">{config.mlx_install_note}</p>
+                )}
               </AlertDescription>
             </Alert>
           )}
