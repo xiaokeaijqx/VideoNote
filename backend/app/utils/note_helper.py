@@ -32,15 +32,12 @@ def prepend_source_link(markdown: str | None, source_url: str) -> str | None:
 
 
 def normalize_toc(markdown: str | None) -> str | None:
-    """规范化「## 目录」区块为固定格式：`## 目录` + 一级纯文本列表。
+    """规范化「## 目录」区块：剥掉目录条目里误带的 `#`/`##` 标题标记。
 
-    LLM 不一定每次都遵守 prompt 的格式要求，常见跑偏：
-    - 把章节标题的 `##` 标记原样抄进列表项（`- ## 1. xxx`），渲染出来和正文标题一样大
-    - 生成缩进的嵌套子项，目录层级混乱
-    - 条目带加粗 / 原片跳转标记
-
-    这里做确定性整形：标题标记/加粗剥掉、嵌套子项丢弃（目录只保留章节级）、
-    跳转标记移除。没有目录区块时原样返回。
+    LLM 有时把章节标题的 `##` 标记原样抄进目录列表（`- ## 1. xxx`），
+    渲染出来和正文标题一样大。这里只做一件事：把目录区块内所有列表条目
+    （含缩进子项）开头的标题标记剥掉——嵌套子项、加粗、链接等都允许，
+    原样保留。没有目录区块时原样返回。
     """
     if not markdown:
         return markdown
@@ -61,23 +58,15 @@ def normalize_toc(markdown: str | None) -> str | None:
                 in_toc = False
                 out.append(line)
                 continue
-            m = re.match(r'^(\s*)[-*+]\s+(.*)$', line)
+            m = re.match(r'^(\s*[-*+]\s+)(.*)$', line)
             if m:
-                indent, item = m.group(1), m.group(2).strip()
-                # 缩进子项丢弃：目录只保留章节级条目
-                if len(indent) >= 2:
-                    continue
-                item = re.sub(r'\*Content-\[\d{1,3}:\d{2}\]', '', item)  # 原片跳转标记
-                # 循环剥离标题标记 / 首尾加粗符——可能互相嵌套（如 **## xxx**）
-                prev = None
-                while prev != item:
-                    prev = item
-                    item = re.sub(r'^#{1,6}\s*', '', item).strip()
-                    item = item.strip('*').strip()
-                if item:
-                    out.append(f'- {item}')
+                prefix, item = m.group(1), m.group(2)
+                # 只剥条目开头的标题标记；兼容加粗包裹的写法（**## xxx** → **xxx**），
+                # 缩进/加粗/其余内容全部原样保留
+                item = re.sub(r'^(\*{0,2})\s*#{1,6}\s+', r'\1', item)
+                out.append(prefix + item)
                 continue
-            # 目录区块内的空行保留，其他杂行（如说明文字）原样保留
+            # 目录区块内的空行 / 其他杂行原样保留
             out.append(line)
             continue
         out.append(line)

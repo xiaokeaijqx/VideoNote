@@ -41,27 +41,30 @@ class TestNoteHelper(unittest.TestCase):
         # 正文标题不受影响
         self.assertIn("\n## 1. 章节一\n", result)
 
-    def test_normalize_toc_strips_nested_bold_heading_and_jump_marker(self):
+    def test_normalize_toc_strips_heading_marker_inside_bold(self):
+        markdown = "## 目录\n\n- **## 4. 应用矩阵**\n\n## 4. 应用矩阵\n正文"
+
+        result = note_helper.normalize_toc(markdown)
+
+        # 加粗保留，只剥标题标记
+        self.assertIn("- **4. 应用矩阵**", result)
+
+    def test_normalize_toc_keeps_sub_items_and_strips_their_markers(self):
         markdown = (
             "## 目录\n\n"
-            "- **## 4. 应用矩阵**\n"
-            "- ## AI 总结 *Content-[01:23]\n\n"
-            "## 4. 应用矩阵\n正文"
+            "- 章节一\n"
+            "  - 子项A\n"
+            "  - ## 子项B\n"
+            "- 章节二\n\n"
+            "## 章节一\n正文"
         )
 
         result = note_helper.normalize_toc(markdown)
 
-        self.assertIn("- 4. 应用矩阵\n", result)
-        self.assertIn("- AI 总结\n", result)
-        self.assertNotIn("*Content-", result.split("\n## 4.")[0])
-
-    def test_normalize_toc_drops_nested_sub_items(self):
-        markdown = "## 目录\n\n- 章节一\n  - 子项A\n  - 子项B\n- 章节二\n\n## 章节一\n正文"
-
-        result = note_helper.normalize_toc(markdown)
-
-        self.assertNotIn("子项A", result)
-        self.assertNotIn("子项B", result)
+        # 嵌套子项允许、缩进保留；子项里的标题标记同样剥掉
+        self.assertIn("  - 子项A", result)
+        self.assertIn("  - 子项B", result)
+        self.assertNotIn("- ## 子项B", result)
         self.assertIn("- 章节一", result)
         self.assertIn("- 章节二", result)
 
