@@ -111,7 +111,20 @@ const Collections: FC = () => {
                 style={{ background: bg, color: isUngrouped ? 'var(--vm-faint)' : '#fff' }}
               >
                 {c.cover ? (
-                  <img src={c.cover} alt={c.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  // 绝对定位铺满封面区：容器是 grid + place-items:center（为居中
+                  // 文件夹图标），grid 子项的 width/height:100% 在 auto 轨道下解析
+                  // 不可靠，图片会按原始尺寸居中而不是撑满
+                  <img
+                    src={c.cover}
+                    alt={c.name}
+                    style={{
+                      position: 'absolute',
+                      inset: 0,
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                    }}
+                  />
                 ) : isUngrouped ? (
                   <Inbox size={34} />
                 ) : (
