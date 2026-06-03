@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "VideoMemo",
-  "version": "2.3.7",
+  "version": "2.3.8",
   "identifier": "com.videomemo.desktop",
   "build": {
     "frontendDist": "../dist",
