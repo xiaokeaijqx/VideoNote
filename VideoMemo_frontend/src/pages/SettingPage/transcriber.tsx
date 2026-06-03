@@ -363,27 +363,32 @@ export default function Transcriber() {
                 <Alert variant="warning" className="text-sm">
                   <AlertTriangle className="h-4 w-4" />
                   <AlertDescription>
-                    <p className="font-medium">FunASR 当前不可用（未安装依赖）</p>
-                    <p className="mt-2">在「终端」中执行以下命令安装：</p>
-                    <div className="mt-1 flex items-start gap-2">
-                      <code className="block flex-1 rounded bg-neutral-100 px-2 py-1.5 text-xs break-all select-all">
-                        {config.funasr_install_command || 'pip install funasr torch torchaudio'}
-                      </code>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="shrink-0"
-                        onClick={() => {
-                          navigator.clipboard
-                            .writeText(config.funasr_install_command || 'pip install funasr torch torchaudio')
-                            .then(() => toast.success('命令已复制'))
-                            .catch(() => toast.error('复制失败，请手动选择复制'))
-                        }}
-                      >
-                        复制命令
-                      </Button>
-                    </div>
+                    <p className="font-medium">FunASR 当前不可用</p>
+                    {/* 桌面端后端不下发安装命令（torch 与打包运行时不兼容），只显示说明 */}
+                    {config.funasr_install_command && (
+                      <>
+                        <p className="mt-2">在「终端」中执行以下命令安装：</p>
+                        <div className="mt-1 flex items-start gap-2">
+                          <code className="block flex-1 rounded bg-neutral-100 px-2 py-1.5 text-xs break-all select-all">
+                            {config.funasr_install_command}
+                          </code>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="shrink-0"
+                            onClick={() => {
+                              navigator.clipboard
+                                .writeText(config.funasr_install_command || '')
+                                .then(() => toast.success('命令已复制'))
+                                .catch(() => toast.error('复制失败，请手动选择复制'))
+                            }}
+                          >
+                            复制命令
+                          </Button>
+                        </div>
+                      </>
+                    )}
                     {config.funasr_install_note && (
                       <p className="mt-2 text-xs text-neutral-500">{config.funasr_install_note}</p>
                     )}

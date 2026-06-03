@@ -21,7 +21,13 @@ class TranscriberType(str, Enum):
 
 # FunASR 可选引擎：用 find_spec 探测是否安装，绝不在此 import（import funasr 会连带加载
 # torch，拖慢启动且桌面瘦身包没有 torch）。真正用到时才在 FunASRTranscriber 内部 import。
-FUNASR_AVAILABLE = importlib.util.find_spec("funasr") is not None
+# 桌面冻结包强制不可用：torch 无法在 PyInstaller 冻结运行时初始化（pybind 重复注册崩溃），
+# 而且装进插件目录后会被 ctranslate2 的启动链路自动 import，直接把应用打挂。
+import sys as _sys
+FUNASR_AVAILABLE = (
+    not getattr(_sys, "frozen", False)
+    and importlib.util.find_spec("funasr") is not None
+)
 if FUNASR_AVAILABLE:
     logger.info("FunASR 可用（已安装 funasr）")
 

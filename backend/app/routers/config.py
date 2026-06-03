@@ -134,12 +134,17 @@ def get_transcriber_config():
         "mlx_install_command": mlx_install_command,
         "mlx_install_note": mlx_install_note,
         "mlx_plugin_dir": plugin_dir,
-        # FunASR 可选引擎：未安装时前端给安装指引并禁用保存
+        # FunASR 可选引擎：未安装时前端给安装指引并禁用保存。
+        # 桌面冻结包不支持（torch 与 PyInstaller 运行时不兼容，装进插件目录会让应用无法启动），
+        # 此时不下发安装命令，只给说明。
         "funasr_available": FUNASR_AVAILABLE,
-        "funasr_install_command": "pip install funasr torch torchaudio",
+        "funasr_install_command": "" if getattr(sys, "frozen", False) else "pip install funasr torch torchaudio",
         "funasr_install_note": (
-            "FunASR 依赖 PyTorch（约 2GB），属可选引擎，安装到后端运行环境后重启生效；"
-            "桌面版需装到插件目录。中文识别效果通常优于 Whisper，模型首次使用经 modelscope 自动下载。"
+            "桌面版暂不支持 FunASR：其依赖的 PyTorch 与桌面打包运行时不兼容，"
+            "强行安装到插件目录会导致应用无法启动。如需 FunASR 请使用源码或 Docker 部署。"
+            if getattr(sys, "frozen", False)
+            else "FunASR 依赖 PyTorch（约 2GB），属可选引擎，安装到后端运行环境（venv）后重启生效；"
+                 "中文识别效果通常优于 Whisper，模型首次使用经 modelscope 自动下载。"
         ),
     })
 
