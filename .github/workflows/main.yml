@@ -6,6 +6,11 @@ on:
       - 'v*'
   workflow_dispatch:
 
+# 前端 vite 构建（tauri 的 beforeBuildCommand）默认 Node 堆不够，macOS runner 上会
+# JavaScript heap out of memory；全局调大 Node 堆上限。
+env:
+  NODE_OPTIONS: --max-old-space-size=4096
+
 jobs:
   build:
     strategy:
