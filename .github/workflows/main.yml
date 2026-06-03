@@ -10,6 +10,9 @@ on:
 # JavaScript heap out of memory；全局调大 Node 堆上限。
 env:
   NODE_OPTIONS: --max-old-space-size=4096
+  # 让仍声明 node20 运行时的 action（cache / artifact / pnpm-setup / gh-release）改跑 node24，
+  # 消除「Node.js 20 actions are deprecated」弃用警告（GitHub 官方迁移开关）。
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   build:
@@ -26,11 +29,11 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       # 设置 Python 环境（带 pip 缓存）
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
           cache: 'pip'
@@ -60,7 +63,7 @@ jobs:
 
       # 设置 Node 环境
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '20'
 
@@ -165,7 +168,7 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       # 下载所有平台的构建产物
       - name: Download all artifacts
