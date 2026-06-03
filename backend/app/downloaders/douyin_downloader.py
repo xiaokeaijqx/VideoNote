@@ -113,11 +113,41 @@ class DouyinDownloader(Downloader):
     def __init__(self, cookie=None):
         super().__init__()
         self.headers_config = DouyinConfig.HEADERS.copy()
-        self.headers_config["Cookie"] = cfm.get('douyin')
+        self.headers_config["Cookie"] = self._resolve_cookie()
         print(self.headers_config)
         self.proxies_config = DouyinConfig.PROXIES.copy()
         self.ttwid_config = DouyinConfig.TTWID.copy()
         self.ms_token_config = DouyinConfig.MS_TOKEN.copy()
+
+    @staticmethod
+    def _resolve_cookie() -> str:
+        """解析抖音 Cookie：粘贴的字符串优先；否则按「下载配置」里选的浏览器实时提取。
+
+        抖音接口走的是自封装 requests（不是 yt-dlp），此前完全忽略 browser 配置，
+        导致用户选了「从浏览器读取」时实际带空 Cookie 请求 → 风控返回空响应体 →
+        JSONDecodeError。这里借用 yt-dlp 的浏览器 Cookie 提取能力补上。
+        """
+        cookie = cfm.get('douyin')
+        if cookie:
+            return cookie
+        browser = cfm.get_browser('douyin')
+        if not browser:
+            return ""
+        try:
+            from yt_dlp.cookies import extract_cookies_from_browser
+            jar = extract_cookies_from_browser(browser)
+            pairs = [
+                f"{c.name}={c.value}"
+                for c in jar
+                if c.domain and "douyin.com" in c.domain and c.value
+            ]
+            if pairs:
+                print(f"抖音使用浏览器({browser}) Cookie，共 {len(pairs)} 条")
+                return "; ".join(pairs)
+            print(f"浏览器({browser})中未找到 douyin.com 的 Cookie，请先在该浏览器登录抖音")
+        except Exception as e:
+            print(f"从浏览器({browser})读取抖音 Cookie 失败：{e}")
+        return ""
 
     @staticmethod
     def find_url(string: str) -> list:
@@ -205,7 +235,17 @@ class DouyinDownloader(Downloader):
             response = requests.get(full_url, headers=kwargs)
 
             print("Response JSON:", response.content)
+            # 抖音风控对无效/缺失 Cookie 的典型表现：HTTP 200 + 空响应体。
+            # 直接 .json() 会抛出难懂的 JSONDecodeError，这里换成可行动的提示。
+            if not (response.content or b"").strip():
+                raise ValueError(
+                    "抖音接口返回空响应（疑似风控）：通常是抖音 Cookie 未配置或已失效。"
+                    "请到「设置 → 下载配置」粘贴登录后的抖音 Cookie，"
+                    "或确认所选浏览器已登录 douyin.com 后重试。"
+                )
             return response.json()
+        except ValueError:
+            raise
         except Exception as e:
             print("请求失败:", e)
             raise ValueError("请求失败:", e)
