@@ -138,9 +138,11 @@ class NoteGenerator:
     def __init__(self):
         from app.services.transcriber_config_manager import TranscriberConfigManager
         config_manager = TranscriberConfigManager()
-        self.model_size: str = config_manager.get_whisper_model_size()
+        cfg = config_manager.get_config()
+        self.model_size: str = cfg["whisper_model_size"]
         self.device: Optional[str] = None
-        self.transcriber_type: str = config_manager.get_transcriber_type()
+        self.transcriber_type: str = cfg["transcriber_type"]
+        self.funasr_model: str = cfg.get("funasr_model") or "paraformer-zh"
         self._transcriber: Optional[Transcriber] = None
         self.video_path: Optional[Path] = None
         self.video_img_urls=[]
@@ -647,7 +649,10 @@ class NoteGenerator:
         """
         if not video_id:
             return None
-        raw_key = f"{platform}_{video_id}_{self.transcriber_type}_{self.model_size}"
+        # 模型维度按引擎取：whisper 系是档位/自定义，funasr 是其模型名——
+        # 否则换 FunASR 模型不会失效旧缓存（曾出现 en 模型的空结果被 zh 复用）
+        model_key = self.funasr_model if self.transcriber_type == "funasr" else self.model_size
+        raw_key = f"{platform}_{video_id}_{self.transcriber_type}_{model_key}"
         safe_key = "".join(ch if ch.isalnum() or ch in ("-", "_") else "_" for ch in raw_key)
         cache_dir = NOTE_OUTPUT_DIR / "video_transcripts"
         cache_dir.mkdir(parents=True, exist_ok=True)
@@ -765,6 +770,13 @@ class NoteGenerator:
         try:
             logger.info("开始转写音频")
             transcript = self.transcriber.transcript(file_path=audio_file)
+            # 空转写视为失败：空结果一旦入缓存，重试会一直命中空数据并在 GPT 总结阶段
+            # 以难懂的 IndexError 崩掉（曾因英文模型转中文视频产出空文本触发）。
+            if transcript is None or not (transcript.segments or (transcript.full_text or "").strip()):
+                raise RuntimeError(
+                    "转写结果为空：可能视频没有人声，或当前转写引擎/模型与视频语言不匹配"
+                    "（例如用英文模型转中文视频）。请到「设置 → 音频转写配置」检查后重试。"
+                )
             payload = json.dumps(asdict(transcript), ensure_ascii=False, indent=2)
             transcript_cache_file.write_text(payload, encoding="utf-8")
             if video_cache_file:

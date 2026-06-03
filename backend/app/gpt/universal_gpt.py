@@ -256,6 +256,9 @@ class UniversalGPT(GPT):
         )
 
         current_partials = list(partials)
+        if not current_partials:
+            # 上游转写为空/分块为零时的兜底：给可读错误，而不是 current_partials[0] 的 IndexError
+            raise ValueError("没有可总结的内容：转写结果为空或分块失败，请检查转写设置后重试。")
         while len(current_partials) > 1:
             groups = merge_chunker.group_texts_by_budget(current_partials, build_messages)
             new_partials = []
