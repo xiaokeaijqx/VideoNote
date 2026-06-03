@@ -25,11 +25,23 @@
 
 ## 📸 截图预览
 
-| 工作区 · 笔记浏览 | 分类合集 · 闪卡 / 同步 |
+### 页面主题
+
+内置多套配色主题，一键切换：
+
+| 默认 · 靛蓝 | 极简 · 黑白 |
 | :---: | :---: |
-| ![工作区](./doc/screenshot-workspace.png) | ![分类合集](./doc/screenshot-collections.png) |
-| **任务列表 · Token 统计** | **使用说明 · 6 步上手** |
-| ![任务列表](./doc/screenshot-tasks.png) | ![使用说明](./doc/screenshot-guide.png) |
+| ![主题 · 靛蓝](./doc/screenshot-workspace.png) | ![主题 · 黑白](./doc/screenshot-theme-mono.png) |
+| **森林 · 绿** | **暖阳 · 橙** |
+| ![主题 · 绿](./doc/screenshot-theme-green.png) | ![主题 · 橙](./doc/screenshot-theme-orange.png) |
+
+### 功能页面
+
+| 分类合集 · 闪卡 / 同步 | 知识检索 · 跨笔记 RAG 问答 |
+| :---: | :---: |
+| ![分类合集](./doc/screenshot-collections.png) | ![知识检索](./doc/screenshot-knowledge.png) |
+| **任务列表 · Token 统计** | **批量视频导入** |
+| ![任务列表](./doc/screenshot-tasks.png) | ![批量导入](./doc/screenshot-batch-import.png) |
 
 ## ✨ 最近更新
 
