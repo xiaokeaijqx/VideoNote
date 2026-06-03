@@ -42,6 +42,7 @@ def _install_stubs():
         return text
 
     utils_mod.fix_markdown = _fix_markdown
+    utils_mod.strip_think_blocks = lambda text: (text or "").strip()
 
     request_chunker_mod = types.ModuleType("app.gpt.request_chunker")
 
@@ -145,7 +146,9 @@ class TestCreateMessagesContentFormat(unittest.TestCase):
         self.assertEqual(content[0], {"type": "text", "text": "PROMPT_BODY"})
         self.assertEqual(content[1]["type"], "image_url")
         self.assertEqual(content[1]["image_url"]["url"], "https://example.com/a.jpg")
-        self.assertEqual(content[1]["image_url"]["detail"], "auto")
+        # 不应携带 detail 字段：MiniMax 等兼容接口对 detail:"auto" 报 400 (2013)，
+        # OpenAI 缺省值本来就是 auto
+        self.assertNotIn("detail", content[1]["image_url"])
         self.assertEqual(content[2]["image_url"]["url"], "https://example.com/b.jpg")
 
     def test_no_image_url_field_when_no_images(self):

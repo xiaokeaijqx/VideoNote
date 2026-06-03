@@ -55,6 +55,11 @@ def get_groq_transcriber():
     return _init_transcriber(TranscriberType.GROQ, GroqTranscriber)
 
 def get_whisper_transcriber(model_size="base", device="cuda"):
+    # 模型大小变更时重建实例：单例只按类型缓存，否则设置页切换 size 不生效
+    inst = _transcribers[TranscriberType.FAST_WHISPER]
+    if inst is not None and getattr(inst, "model_size", None) != model_size:
+        logger.info(f"fast-whisper 模型大小变更 {getattr(inst, 'model_size', None)} -> {model_size}，重建实例")
+        _transcribers[TranscriberType.FAST_WHISPER] = None
     return _init_transcriber(TranscriberType.FAST_WHISPER, WhisperTranscriber, model_size=model_size, device=device)
 
 def get_bcut_transcriber():
@@ -67,22 +72,27 @@ def get_mlx_whisper_transcriber(model_size="base"):
     if not MLX_WHISPER_AVAILABLE:
         logger.warning("MLX Whisper 不可用，请确保在 Apple 平台且已安装 mlx_whisper")
         raise ImportError("MLX Whisper 不可用")
+    # 模型大小变更时重建实例：单例只按类型缓存，否则设置页切换 size 不生效
+    inst = _transcribers[TranscriberType.MLX_WHISPER]
+    if inst is not None and getattr(inst, "model_size", None) != model_size:
+        logger.info(f"mlx-whisper 模型大小变更 {getattr(inst, 'model_size', None)} -> {model_size}，重建实例")
+        _transcribers[TranscriberType.MLX_WHISPER] = None
     return _init_transcriber(TranscriberType.MLX_WHISPER, MLXWhisperTranscriber, model_size=model_size)
 
 # 通用入口
-def get_transcriber(transcriber_type="fast-whisper", model_size="base", device="cuda"):
+def get_transcriber(transcriber_type="fast-whisper", model_size=None, device="cuda"):
     """
     获取指定类型的转录器实例
 
     参数:
         transcriber_type: 支持 "fast-whisper", "mlx-whisper", "bcut", "kuaishou", "groq"
-        model_size: 模型大小，适用于 whisper 类
+        model_size: 模型大小，适用于 whisper 类；不传时回退到环境变量 WHISPER_MODEL_SIZE
         device: 设备类型（如 cuda / cpu），仅 whisper 使用
 
     返回:
         对应类型的转录器实例
     """
-    logger.info(f'请求转录器类型: {transcriber_type}')
+    logger.info(f'请求转录器类型: {transcriber_type}, 模型大小: {model_size or "(默认)"}')
 
     try:
         transcriber_enum = TranscriberType(transcriber_type)
@@ -90,7 +100,9 @@ def get_transcriber(transcriber_type="fast-whisper", model_size="base", device="
         logger.warning(f'未知转录器类型 "{transcriber_type}"，默认使用 fast-whisper')
         transcriber_enum = TranscriberType.FAST_WHISPER
 
-    whisper_model_size = os.environ.get("WHISPER_MODEL_SIZE", model_size)
+    # 显式入参优先（来自「音频转写配置」页持久化的配置），环境变量只做未传参时的默认值。
+    # 旧逻辑是环境变量覆盖入参，导致设置页选的模型大小永远被 .env 里的值顶掉。
+    whisper_model_size = model_size or os.environ.get("WHISPER_MODEL_SIZE", "base")
 
     if transcriber_enum == TranscriberType.FAST_WHISPER:
         return get_whisper_transcriber(whisper_model_size, device=device)

@@ -293,6 +293,8 @@ class NoteGenerator:
                     transcript_cache_file=transcript_cache_file,
                     status_phase=TaskStatus.TRANSCRIBING,
                     task_id=task_id,
+                    # 视频级缓存：同一视频重复生成笔记时复用音频转写结果
+                    video_cache_file=self._video_transcript_cache_path(platform, audio_meta.video_id),
                 )
             else:
                 # 字幕路径：已直接拿到转写文本，无需音频转写。仍显式标记「转写文字」步骤，
@@ -396,8 +398,10 @@ class NoteGenerator:
             logger.error(f"未找到支持的转写器：{self.transcriber_type}")
             raise Exception(f"不支持的转写器：{self.transcriber_type}")
 
-        logger.info(f"使用转写器：{self.transcriber_type}")
-        return get_transcriber(transcriber_type=self.transcriber_type)
+        logger.info(f"使用转写器：{self.transcriber_type} (model_size={self.model_size})")
+        # 必须显式传 model_size：不传的话 get_transcriber 会落到环境变量/默认值，
+        # 「音频转写配置」页选的模型大小就不生效了
+        return get_transcriber(transcriber_type=self.transcriber_type, model_size=self.model_size)
 
     def _get_gpt(self, model_name: Optional[str], provider_id: Optional[str]) -> GPT:
         """
@@ -634,6 +638,21 @@ class NoteGenerator:
             raise RuntimeError(friendly) from exc
 
 
+    def _video_transcript_cache_path(self, platform: str, video_id: Optional[str]) -> Optional[Path]:
+        """视频级转写缓存路径：以 平台+视频ID+转写引擎+模型 为 key。
+
+        转写缓存原本只按 task_id 存，同一个视频每生成一次笔记就要完整重转一遍
+        （本地 whisper 一次要数分钟）。音频转写结果在视频维度复用；
+        key 编入引擎与模型大小，切换转写配置后不会命中旧引擎的结果。
+        """
+        if not video_id:
+            return None
+        raw_key = f"{platform}_{video_id}_{self.transcriber_type}_{self.model_size}"
+        safe_key = "".join(ch if ch.isalnum() or ch in ("-", "_") else "_" for ch in raw_key)
+        cache_dir = NOTE_OUTPUT_DIR / "video_transcripts"
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        return cache_dir / f"{safe_key}.json"
+
     def _get_transcript(
         self,
         downloader: Downloader,
@@ -642,6 +661,7 @@ class NoteGenerator:
         transcript_cache_file: Path,
         status_phase: TaskStatus,
         task_id: Optional[str] = None,
+        video_cache_file: Optional[Path] = None,
     ) -> TranscriptResult | None:
         """
         优先获取平台字幕，没有则 fallback 到音频转写
@@ -652,6 +672,7 @@ class NoteGenerator:
         :param transcript_cache_file: 缓存文件路径
         :param status_phase: 状态枚举
         :param task_id: 任务 ID
+        :param video_cache_file: 视频级转写缓存路径（跨任务复用音频转写结果）
         :return: TranscriptResult 对象
         """
         self._update_status(task_id, status_phase)
@@ -688,6 +709,7 @@ class NoteGenerator:
             audio_file=audio_file,
             transcript_cache_file=transcript_cache_file,
             status_phase=status_phase,
+            video_cache_file=video_cache_file,
         )
 
     def _transcribe_audio(
@@ -695,14 +717,17 @@ class NoteGenerator:
         audio_file: str,
         transcript_cache_file: Path,
         status_phase: TaskStatus,
+        video_cache_file: Optional[Path] = None,
     ) -> TranscriptResult | None:
         """
-        1. 检查转写缓存；若存在则尝试加载，否则调用转写器生成并缓存。
+        1. 检查转写缓存（先按 task_id，再按视频级缓存）；若存在则尝试加载，
+           否则调用转写器生成并缓存。
         2. 返回 TranscriptResult 对象
 
         :param audio_file: 音频文件本地路径
-        :param transcript_cache_file: 转写结果缓存路径
+        :param transcript_cache_file: 转写结果缓存路径（按 task_id）
         :param status_phase: 对应的状态枚举，如 TaskStatus.TRANSCRIBING
+        :param video_cache_file: 视频级转写缓存路径（跨任务复用，可空）
         :return: TranscriptResult 对象
         """
         task_id = transcript_cache_file.stem.split("_")[0]
@@ -718,11 +743,35 @@ class NoteGenerator:
             except Exception as e:
                 logger.warning(f"加载转写缓存失败，将重新转写：{e}")
 
+        # 视频级缓存：同一视频之前的任务已经转写过，直接复用
+        if video_cache_file and video_cache_file.exists():
+            logger.info(f"检测到视频级转写缓存 ({video_cache_file})，尝试读取")
+            try:
+                raw_text = video_cache_file.read_text(encoding="utf-8")
+                data = json.loads(raw_text)
+                segments = [TranscriptSegment(**seg) for seg in data.get("segments", [])]
+                transcript = TranscriptResult(
+                    language=data.get("language"),
+                    full_text=data["full_text"],
+                    segments=segments,
+                )
+                # 回写本任务的缓存文件，repolish 等按 task_id 读取的流程不受影响
+                transcript_cache_file.write_text(raw_text, encoding="utf-8")
+                return transcript
+            except Exception as e:
+                logger.warning(f"加载视频级转写缓存失败，将重新转写：{e}")
+
         # 调用转写器
         try:
             logger.info("开始转写音频")
             transcript = self.transcriber.transcript(file_path=audio_file)
-            transcript_cache_file.write_text(json.dumps(asdict(transcript), ensure_ascii=False, indent=2), encoding="utf-8")
+            payload = json.dumps(asdict(transcript), ensure_ascii=False, indent=2)
+            transcript_cache_file.write_text(payload, encoding="utf-8")
+            if video_cache_file:
+                try:
+                    video_cache_file.write_text(payload, encoding="utf-8")
+                except Exception as e:
+                    logger.warning(f"写入视频级转写缓存失败（忽略）：{e}")
             logger.info(f"转写并缓存成功 ({transcript_cache_file})")
             return transcript
         except Exception as exc:
@@ -900,7 +949,10 @@ class NoteGenerator:
                 filename = Path(img_path).name
                 # 构建前端可访问的 URL，例如 /static/screenshots/{filename}
                 img_url = f"{IMAGE_BASE_URL.rstrip('/')}/{filename}"
-                markdown = markdown.replace(marker, f"![]({img_url})", 1)
+                # 把时间戳写进 alt（「原片 @ mm:ss」），前端据此在截图下方生成
+                # 「跳转原片对应时间点」的链接。alt 不显示在页面上，不影响观感。
+                alt = f"原片 @ {ts // 60:02d}:{ts % 60:02d}"
+                markdown = markdown.replace(marker, f"![{alt}]({img_url})", 1)
             except Exception as exc:
                 logger.error(f"生成截图失败 (timestamp={ts})：{exc}")
                 # self._handle_exception(task_id, exc)

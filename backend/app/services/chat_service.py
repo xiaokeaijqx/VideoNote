@@ -3,6 +3,7 @@ import os
 from typing import Optional
 
 from app.gpt.gpt_factory import GPTFactory
+from app.gpt.utils import strip_think_blocks
 from app.models.model_config import ModelConfig
 from app.services.provider import ProviderService
 from app.services.vector_store import VectorStoreManager, NOTE_OUTPUT_DIR
@@ -176,7 +177,7 @@ def chat(
         temperature=0.7,
     )
 
-    return {"answer": response.choices[0].message.content or "", "sources": sources}
+    return {"answer": strip_think_blocks(response.choices[0].message.content), "sources": sources}
 
 
 # ── 跨笔记知识库问答 ─────────────────────────────────────────
@@ -353,4 +354,4 @@ def chat_across(
         messages=messages,
         temperature=0.7,
     )
-    return {"answer": response.choices[0].message.content or "", "sources": sources}
+    return {"answer": strip_think_blocks(response.choices[0].message.content), "sources": sources}

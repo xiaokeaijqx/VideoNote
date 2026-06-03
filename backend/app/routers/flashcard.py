@@ -5,6 +5,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from app.gpt.gpt_factory import GPTFactory
+from app.gpt.utils import strip_think_blocks
 from app.models.model_config import ModelConfig
 from app.services.provider import ProviderService
 from app.utils.logger import get_logger
@@ -92,7 +93,7 @@ def generate_flashcards(data: FlashcardRequest):
             ],
             temperature=0.4,
         )
-        raw = response.choices[0].message.content or ""
+        raw = strip_think_blocks(response.choices[0].message.content)
         cards = _parse_cards(raw)
         if not cards:
             logger.warning(f"闪卡解析为空，原始输出: {raw[:200]}")

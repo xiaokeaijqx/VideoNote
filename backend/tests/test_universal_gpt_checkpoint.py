@@ -41,6 +41,7 @@ def _install_stubs():
         return text
 
     utils_mod.fix_markdown = _fix_markdown
+    utils_mod.strip_think_blocks = lambda text: (text or "").strip()
 
     request_chunker_mod = types.ModuleType("app.gpt.request_chunker")
 

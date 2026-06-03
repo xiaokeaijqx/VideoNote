@@ -80,10 +80,13 @@ class MLXWhisperTranscriber(Transcriber):
     @timeit
     def transcript(self, file_path: str) -> TranscriptResult:
         try:
-            # 使用 MLX Whisper 进行转录
+            # 使用 MLX Whisper 进行转录。
+            # 必须传 __init__ 里 snapshot_download 落盘的本地目录：
+            # 传 repo id 会让 mlx_whisper 每次先去 HuggingFace Hub 校验/下载，
+            # 网络不通时直接 LocalEntryNotFoundError，转写必然失败。
             result = mlx_whisper.transcribe(
                 file_path,
-                path_or_hf_repo=f"{self.model_name}"
+                path_or_hf_repo=self.model_path
             )
             
             # 转换为标准格式

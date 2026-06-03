@@ -329,7 +329,7 @@ ffmpeg*/
 ffmpg*/
 # VideoMemo - 用户本地数据，不应提交
 /backend/video_memo.db
-/backend/video_memo.db
+/backend/app/db/video_memo.db
 /backend/data/
 /backend/static/
 

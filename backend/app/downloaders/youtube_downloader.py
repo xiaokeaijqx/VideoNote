@@ -28,16 +28,25 @@ def _apply_proxy(ydl_opts: dict) -> dict:
 
 
 def _apply_youtube_extractor_args(ydl_opts: dict) -> dict:
-    """绕开 YouTube SSAP（server-side ads）实验：web 客户端常常拿不到 URL（issue #12482）。
+    """YouTube player_client 选择。
 
-    只用不需要 PO Token 的客户端：
-      - tv：YouTube TV 网页客户端，目前最稳，多数视频可以直接拿到 m4a 音频流
-      - web_safari：Safari User-Agent 走的 web 客户端，部分场景比纯 web 健壮
-    避免 ios / mweb / android：它们都被 yt-dlp 标注 require PO Token，没提供时会跳过全部格式。
+    默认不再覆盖、交给 yt-dlp 的内置策略：
+    早期为绕开 SSAP 实验（issue #12482）硬编码过 ['tv', 'web_safari']，
+    但 YouTube 后来对 tv 客户端做「全量 DRM」实验（issue #12563），命中的会话
+    所有视频都报 "This video is DRM protected"；而 web 系客户端需要 JS runtime
+    （deno）解 n challenge，装好后 yt-dlp 默认客户端列表即可正常取流。
+    硬编码的客户端列表会随 YouTube 风控变化反复失效，不如跟随 yt-dlp 升级。
+
+    如需临时指定，可设环境变量 YT_PLAYER_CLIENT（逗号分隔），如
+    YT_PLAYER_CLIENT=web_safari,android_vr。
     """
-    ydl_opts.setdefault('extractor_args', {})
-    ydl_opts['extractor_args'].setdefault('youtube', {})
-    ydl_opts['extractor_args']['youtube']['player_client'] = ['tv', 'web_safari']
+    clients = os.getenv('YT_PLAYER_CLIENT', '').strip()
+    if clients:
+        ydl_opts.setdefault('extractor_args', {})
+        ydl_opts['extractor_args'].setdefault('youtube', {})
+        ydl_opts['extractor_args']['youtube']['player_client'] = [
+            c.strip() for c in clients.split(',') if c.strip()
+        ]
     return ydl_opts
 
 
@@ -196,7 +205,14 @@ class YoutubeDownloader(Downloader, ABC):
         output_path = os.path.join(output_dir, "%(id)s.%(ext)s")
 
         ydl_opts = {
-            'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]',
+            # 这里下载的视频只用于截图网格/视频理解抽帧，720p 足够：
+            # 不设上限的话 bestvideo 会选 4K AV1（动辄 300MB+，下载和 ffmpeg
+            # 解码抽帧都极慢）。优先 avc1（解码远快于 av01），同高度再退 av01。
+            'format': (
+                'bestvideo[height<=720][vcodec^=avc1]+bestaudio[ext=m4a]'
+                '/bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]'
+                '/best[height<=720][ext=mp4]/best[ext=mp4]'
+            ),
             'outtmpl': output_path,
             'noplaylist': True,
             'quiet': False,

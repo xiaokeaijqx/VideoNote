@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from app.gpt.prompt import BASE_PROMPT, AI_SUM, SCREENSHOT, LINK, MERGE_PROMPT
-from app.gpt.utils import fix_markdown
+from app.gpt.utils import fix_markdown, strip_think_blocks
 from app.gpt.request_chunker import RequestChunker
 from app.models.transcriber_model import TranscriptSegment
 from datetime import timedelta
@@ -59,14 +59,15 @@ class UniversalGPT(GPT):
 
         content: list[dict] | str
         if video_img_urls:
-            # 有截图时走 OpenAI 多模态 content 数组（text + image_url）
+            # 有截图时走 OpenAI 多模态 content 数组（text + image_url）。
+            # 不要带 "detail" 字段：OpenAI 缺省即 auto，而 MiniMax 等兼容接口
+            # 会对 detail:"auto" 报 400 invalid image detail (2013)，导致带图请求全挂。
             content = [{"type": "text", "text": content_text}]
             for url in video_img_urls:
                 content.append({
                     "type": "image_url",
                     "image_url": {
-                        "url": url,
-                        "detail": "auto"
+                        "url": url
                     }
                 })
         else:
@@ -267,7 +268,7 @@ class UniversalGPT(GPT):
                         self._save_checkpoint(checkpoint_key, source_signature, current_partials, "merge")
                     raise
 
-                new_partials.append(response.choices[0].message.content.strip())
+                new_partials.append(strip_think_blocks(response.choices[0].message.content))
 
                 if checkpoint_key and source_signature:
                     remaining_partials = []
@@ -340,7 +341,7 @@ class UniversalGPT(GPT):
                     self._save_checkpoint(checkpoint_key, source_signature, partials, "summarize")
                 raise
 
-            partials.append(response.choices[0].message.content.strip())
+            partials.append(strip_think_blocks(response.choices[0].message.content))
             if checkpoint_key and source_signature:
                 self._save_checkpoint(checkpoint_key, source_signature, partials, "summarize")
 
