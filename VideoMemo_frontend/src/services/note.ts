@@ -48,10 +48,8 @@ export const delete_task = async ({ video_id, platform }) => {
       platform,
     }
     const res = await request.post('/delete_task', data)
-
-
-      toast.success('任务已成功删除')
-      return res
+    // 成功提示由调用方（卡片/任务列表的删除入口）统一弹出，这里不再重复 toast
+    return res
   } catch (e) {
     toast.error('请求异常，删除任务失败')
     console.error('❌ 删除任务失败:', e)
