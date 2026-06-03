@@ -18,8 +18,11 @@ fi
 TAG="v${VERSION}"
 
 DMG_DIR="VideoMemo_frontend/src-tauri/target/release/bundle/dmg"
-# 匹配该版本的所有架构 dmg（aarch64 / x64）
-mapfile -t DMGS < <(ls "$DMG_DIR"/VideoMemo_"${VERSION}"_*.dmg 2>/dev/null || true)
+# 匹配该版本的所有架构 dmg（aarch64 / x64）。用可移植 glob 循环（macOS 自带 bash 3.2 无 mapfile）
+DMGS=()
+for f in "$DMG_DIR"/VideoMemo_"${VERSION}"_*.dmg; do
+  [ -e "$f" ] && DMGS+=("$f")
+done
 if [ "${#DMGS[@]}" -eq 0 ]; then
   echo "✗ 在 $DMG_DIR 找不到 VideoMemo_${VERSION}_*.dmg，请先 pnpm tauri build" >&2
   exit 1
