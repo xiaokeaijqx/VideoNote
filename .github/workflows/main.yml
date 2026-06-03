@@ -112,11 +112,18 @@ jobs:
           if [ "$RUNNER_OS" = "macOS" ]; then
             pnpm tauri build --bundles app
             APP="src-tauri/target/release/bundle/macos/VideoMemo.app"
-            # 无开发者证书：对整个 .app（含 PyInstaller sidecar）做 ad-hoc 重签。
+            # 无开发者证书：对 .app 做 ad-hoc 重签。
             # 不签名的话，下载的 dmg 带 quarantine 属性，Apple Silicon 直接报「已损坏」；
             # ad-hoc 签名后用户可走「右键打开 / 系统设置→隐私与安全性→仍要打开」放行。
-            codesign --force --deep --sign - "$APP"
-            codesign --verify --deep --strict "$APP" && echo "ad-hoc 签名校验通过"
+            # 注意不能用 --deep：它会把 PyInstaller sidecar 目录误判为子 bundle
+            # （bundle format unrecognized）。改为逐个签内嵌 Mach-O，最后签 .app 本体。
+            while IFS= read -r -d '' f; do
+              if file -b "$f" | grep -q "Mach-O"; then
+                codesign --force --sign - "$f" >/dev/null 2>&1 || true
+              fi
+            done < <(find "$APP" -type f -print0)
+            codesign --force --sign - "$APP"
+            codesign --verify --strict "$APP" && echo "ad-hoc 签名校验通过"
             DMG_DIR="src-tauri/target/release/bundle/dmg"
             mkdir -p "$DMG_DIR"
             STAGE="$(mktemp -d)"
