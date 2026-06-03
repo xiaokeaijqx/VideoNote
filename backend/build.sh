@@ -40,6 +40,7 @@ python -m PyInstaller \
   --exclude-module torch \
   --exclude-module torchvision \
   --exclude-module torchaudio \
+  --exclude-module funasr \
   --exclude-module mlx_whisper.torch_whisper \
   --add-data "app/db/builtin_providers.json:." \
   --add-data ".env:." \

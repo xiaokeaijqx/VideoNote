@@ -34,6 +34,7 @@ class WhisperTranscriber(Transcriber):
             device: str = 'cpu',
             compute_type: str = None,
             cpu_threads: int = 1,
+            model_path: str = None,
     ):
         if device == 'cpu' or device is None:
             self.device = 'cpu'
@@ -43,20 +44,30 @@ class WhisperTranscriber(Transcriber):
                 print('没有 cuda 使用 cpu进行计算')
 
         self.compute_type = compute_type or ("float16" if self.device == "cuda" else "int8")
-        self.model_size = model_size
+
+        # model_path 非空：用户自定义模型（本地 CTranslate2 目录 或 HF 仓库 id）。
+        # faster-whisper 的 WhisperModel 对存在的本地目录直接加载；含 "/" 的字符串当 HF repo。
+        self.is_custom = bool(model_path)
+        # 单例「变化即重建」按 self.model_size 比较，自定义时用路径本身作为键
+        self.model_size = model_path if self.is_custom else model_size
+        self._source = model_path if self.is_custom else model_size
 
         model_dir = get_model_dir("whisper")
         try:
-            self.model = self._build_model(model_size, model_dir)
+            self.model = self._build_model(self._source, model_dir)
         except Exception as e:
+            if self.is_custom:
+                # 自定义模型不动 cache（命名规则不适用），直接抛出可读错误
+                logger.error(f"加载自定义 whisper 模型失败（{self._source}）：{e}")
+                raise
             # 自愈：损坏 / 截断 / 半成品 cache → 删掉对应 HF cache 重下一次
             logger.warning(f"加载 whisper-{model_size} 失败：{e}；清理 cache 后重新下载")
             self._purge_cache(model_dir, model_size)
-            self.model = self._build_model(model_size, model_dir)
+            self.model = self._build_model(self._source, model_dir)
 
-    def _build_model(self, model_size: str, model_dir: str) -> WhisperModel:
+    def _build_model(self, source: str, model_dir: str) -> WhisperModel:
         return WhisperModel(
-            model_size_or_path=model_size,  # 传 size name，让 faster-whisper 自己映射到 Systran/faster-whisper-*
+            model_size_or_path=source,  # 预设档名 / 自定义本地目录 / HF 仓库 id
             device=self.device,
             compute_type=self.compute_type,
             download_root=model_dir,

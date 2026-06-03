@@ -1,3 +1,4 @@
+import importlib.util
 import os
 import platform
 from enum import Enum
@@ -16,6 +17,13 @@ class TranscriberType(str, Enum):
     BCUT = "bcut"
     KUAISHOU = "kuaishou"
     GROQ = "groq"
+    FUNASR = "funasr"
+
+# FunASR 可选引擎：用 find_spec 探测是否安装，绝不在此 import（import funasr 会连带加载
+# torch，拖慢启动且桌面瘦身包没有 torch）。真正用到时才在 FunASRTranscriber 内部 import。
+FUNASR_AVAILABLE = importlib.util.find_spec("funasr") is not None
+if FUNASR_AVAILABLE:
+    logger.info("FunASR 可用（已安装 funasr）")
 
 # 在 Apple 平台尝试导入 MLX Whisper（不再依赖环境变量，支持前端动态切换）
 MLX_WHISPER_AVAILABLE = False
@@ -36,6 +44,7 @@ _transcribers = {
     TranscriberType.BCUT: None,
     TranscriberType.KUAISHOU: None,
     TranscriberType.GROQ: None,
+    TranscriberType.FUNASR: None,
 }
 
 # 公共实例初始化函数
@@ -55,11 +64,23 @@ def get_groq_transcriber():
     return _init_transcriber(TranscriberType.GROQ, GroqTranscriber)
 
 def get_whisper_transcriber(model_size="base", device="cuda"):
-    # 模型大小变更时重建实例：单例只按类型缓存，否则设置页切换 size 不生效
+    # size == "custom"：使用用户在「音频转写配置」填的自定义模型（本地目录 / HF 仓库 id）
+    custom_path = None
+    if model_size == "custom":
+        from app.services.transcriber_config_manager import TranscriberConfigManager
+        custom_path = (TranscriberConfigManager().get_config().get("whisper_custom_model") or "").strip()
+        if not custom_path:
+            raise RuntimeError("已选择「自定义」Whisper 模型，但未填写模型路径或仓库 id；请到「音频转写配置」填写。")
+
+    # 实例「变化即重建」：自定义时按路径比较，否则按档位比较
+    target_key = custom_path if model_size == "custom" else model_size
     inst = _transcribers[TranscriberType.FAST_WHISPER]
-    if inst is not None and getattr(inst, "model_size", None) != model_size:
-        logger.info(f"fast-whisper 模型大小变更 {getattr(inst, 'model_size', None)} -> {model_size}，重建实例")
+    if inst is not None and getattr(inst, "model_size", None) != target_key:
+        logger.info(f"fast-whisper 模型变更 {getattr(inst, 'model_size', None)} -> {target_key}，重建实例")
         _transcribers[TranscriberType.FAST_WHISPER] = None
+
+    if model_size == "custom":
+        return _init_transcriber(TranscriberType.FAST_WHISPER, WhisperTranscriber, model_path=custom_path, device=device)
     return _init_transcriber(TranscriberType.FAST_WHISPER, WhisperTranscriber, model_size=model_size, device=device)
 
 def get_bcut_transcriber():
@@ -67,6 +88,22 @@ def get_bcut_transcriber():
 
 def get_kuaishou_transcriber():
     return _init_transcriber(TranscriberType.KUAISHOU, KuaishouTranscriber)
+
+def get_funasr_transcriber(model: str = None):
+    if not FUNASR_AVAILABLE:
+        raise RuntimeError(
+            "FunASR 不可用：请先安装依赖（pip install funasr torch torchaudio），"
+            "安装后重启后端；或在「音频转写配置」页面切换到其他转写引擎。"
+        )
+    # 模型名变更时重建实例（用户可在设置页填自定义 FunASR 模型）
+    inst = _transcribers[TranscriberType.FUNASR]
+    if inst is not None and getattr(inst, "model_name", None) != (model or "paraformer-zh"):
+        logger.info(f"FunASR 模型变更 {getattr(inst, 'model_name', None)} -> {model}，重建实例")
+        _transcribers[TranscriberType.FUNASR] = None
+    # 延迟 import，避免模块加载阶段触发 torch
+    from app.transcriber.funasr_transcriber import FunASRTranscriber
+    return _init_transcriber(TranscriberType.FUNASR, FunASRTranscriber, model=model)
+
 
 def get_mlx_whisper_transcriber(model_size="base"):
     if not MLX_WHISPER_AVAILABLE:
@@ -133,6 +170,11 @@ def get_transcriber(transcriber_type="fast-whisper", model_size=None, device="cu
 
     elif transcriber_enum == TranscriberType.GROQ:
         return get_groq_transcriber()
+
+    elif transcriber_enum == TranscriberType.FUNASR:
+        from app.services.transcriber_config_manager import TranscriberConfigManager
+        funasr_model = TranscriberConfigManager().get_config().get("funasr_model") or "paraformer-zh"
+        return get_funasr_transcriber(model=funasr_model)
 
     # fallback
     logger.warning(f'未识别转录器类型 "{transcriber_type}"，使用 fast-whisper 作为默认')

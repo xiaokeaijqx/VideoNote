@@ -86,6 +86,8 @@ def update_cookie(data: CookieUpdateRequest):
 class TranscriberConfigRequest(BaseModel):
     transcriber_type: str
     whisper_model_size: Optional[str] = None
+    whisper_custom_model: Optional[str] = None
+    funasr_model: Optional[str] = None
 
 
 AVAILABLE_TRANSCRIBER_TYPES = [
@@ -94,15 +96,17 @@ AVAILABLE_TRANSCRIBER_TYPES = [
     {"value": "kuaishou", "label": "快手（在线）"},
     {"value": "groq", "label": "Groq（在线）"},
     {"value": "mlx-whisper", "label": "MLX Whisper（仅macOS）"},
+    {"value": "funasr", "label": "FunASR（阿里·中文，需装依赖）"},
 ]
 
-WHISPER_MODEL_SIZES = ["tiny", "base", "small", "medium", "large-v3", "large-v3-turbo"]
+# "custom" 末项：用户自定义本地/HF whisper 模型（路径见 whisper_custom_model）
+WHISPER_MODEL_SIZES = ["tiny", "base", "small", "medium", "large-v3", "large-v3-turbo", "custom"]
 
 
 @router.get("/transcriber_config")
 def get_transcriber_config():
     import sys
-    from app.transcriber.transcriber_provider import MLX_WHISPER_AVAILABLE
+    from app.transcriber.transcriber_provider import MLX_WHISPER_AVAILABLE, FUNASR_AVAILABLE
 
     config = transcriber_config_manager.get_config()
 
@@ -130,6 +134,13 @@ def get_transcriber_config():
         "mlx_install_command": mlx_install_command,
         "mlx_install_note": mlx_install_note,
         "mlx_plugin_dir": plugin_dir,
+        # FunASR 可选引擎：未安装时前端给安装指引并禁用保存
+        "funasr_available": FUNASR_AVAILABLE,
+        "funasr_install_command": "pip install funasr torch torchaudio",
+        "funasr_install_note": (
+            "FunASR 依赖 PyTorch（约 2GB），属可选引擎，安装到后端运行环境后重启生效；"
+            "桌面版需装到插件目录。中文识别效果通常优于 Whisper，模型首次使用经 modelscope 自动下载。"
+        ),
     })
 
 
@@ -138,6 +149,8 @@ def update_transcriber_config(data: TranscriberConfigRequest):
     config = transcriber_config_manager.update_config(
         transcriber_type=data.transcriber_type,
         whisper_model_size=data.whisper_model_size,
+        whisper_custom_model=data.whisper_custom_model,
+        funasr_model=data.funasr_model,
     )
     return R.success(data=config)
 
@@ -217,6 +230,59 @@ def _check_mlx_whisper_model_exists(model_size: str) -> bool:
     return (Path(model_path) / "config.json").exists()
 
 
+# ---- FunASR 模型预下载 ----
+# 常用 FunASR 模型 → 实际需要的 modelscope 仓库（主模型 + 流水线依赖的 vad/punc）。
+# 预下载用 modelscope.snapshot_download 落到 funasr AutoModel 同一份缓存，
+# 这样首个任务不再边跑边下（曾因下载中断产生损坏的 punc 模型）。
+_FUNASR_VAD_REPO = "iic/speech_fsmn_vad_zh-cn-16k-common-pytorch"
+_FUNASR_PUNC_REPO = "iic/punc_ct-transformer_cn-en-common-vocab471067-large"
+FUNASR_MODEL_REPOS: dict = {
+    "paraformer-zh": [
+        "iic/speech_seaco_paraformer_large_asr_nat-zh-cn-16k-common-vocab8404-pytorch",
+        _FUNASR_VAD_REPO,
+        _FUNASR_PUNC_REPO,
+    ],
+    "SenseVoiceSmall": ["iic/SenseVoiceSmall", _FUNASR_VAD_REPO],
+    "paraformer-zh-streaming": [
+        "iic/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-online",
+        _FUNASR_VAD_REPO,
+        _FUNASR_PUNC_REPO,
+    ],
+}
+
+
+def _modelscope_cache_root() -> Path:
+    """modelscope 默认缓存根（funasr AutoModel 下载落点相同）。"""
+    return Path(os.path.expanduser(os.getenv("MODELSCOPE_CACHE", "~/.cache/modelscope"))) / "hub" / "models"
+
+
+def _check_funasr_model_exists(name: str) -> bool:
+    """FunASR 模型（含其 vad/punc 依赖）是否已全部落盘。以 model.pt 存在为判据。"""
+    repos = FUNASR_MODEL_REPOS.get(name)
+    if not repos:
+        return False  # 未知/自定义模型不做预下载判定，首跑时按需下载
+    return all((_modelscope_cache_root() / r / "model.pt").exists() for r in repos)
+
+
+def _do_download_funasr(name: str):
+    """后台预下载 FunASR 模型及其依赖（modelscope 自带校验，可断点续传/修复）。"""
+    key = f"funasr-{name}"
+    try:
+        _downloading[key] = "downloading"
+        from modelscope.hub.snapshot_download import snapshot_download as ms_download
+
+        for repo in FUNASR_MODEL_REPOS.get(name, []):
+            if (_modelscope_cache_root() / repo / "model.pt").exists():
+                continue
+            logger.info(f"下载 FunASR 模型: {repo}")
+            ms_download(repo)
+        logger.info(f"FunASR 模型下载完成: {name}")
+        _downloading[key] = "done"
+    except Exception as e:
+        logger.error(f"FunASR 模型下载失败: {name}, {e}")
+        _downloading[key] = "failed"
+
+
 @router.get("/transcriber_models_status")
 def get_transcriber_models_status():
     """返回所有 whisper 模型的下载状态。"""
@@ -255,10 +321,21 @@ def get_transcriber_models_status():
             mlx_available = False
             mlx_statuses = []
 
+    # FunASR 模型（预下载状态；不依赖 funasr 包，下载走 modelscope）
+    funasr_statuses = [
+        {
+            "model_size": name,
+            "downloaded": _check_funasr_model_exists(name),
+            "downloading": _downloading.get(f"funasr-{name}") == "downloading",
+        }
+        for name in FUNASR_MODEL_REPOS
+    ]
+
     return R.success(data={
         "whisper": statuses,
         "mlx_whisper": mlx_statuses,
         "mlx_available": mlx_available,
+        "funasr": funasr_statuses,
     })
 
 
@@ -336,9 +413,80 @@ def _do_download_mlx_whisper(model_size: str):
         _downloading[key] = "failed"
 
 
+class ModelDeleteRequest(BaseModel):
+    model_size: str
+    transcriber_type: str = "fast-whisper"  # "fast-whisper" / "mlx-whisper" / "funasr"
+
+
+@router.post("/transcriber_delete")
+def delete_transcriber_model(data: ModelDeleteRequest):
+    """卸载（删除）已下载到本地的转写模型，释放磁盘空间；可随时重新下载。"""
+    import shutil
+
+    size = data.model_size
+    ttype = data.transcriber_type
+
+    # 下载中的模型不允许删，避免半删半下产生损坏缓存
+    dl_key = {"mlx-whisper": f"mlx-{size}", "funasr": f"funasr-{size}"}.get(ttype, size)
+    if _downloading.get(dl_key) == "downloading":
+        return R.error(msg="该模型正在下载中，请等待下载完成后再卸载")
+
+    targets: list = []
+    if ttype == "fast-whisper":
+        if size not in WHISPER_MODEL_SIZES:
+            return R.error(msg=f"未知模型: {size}")
+        model_dir = Path(get_model_dir("whisper"))
+        targets = [
+            model_dir / f"models--Systran--faster-whisper-{size}",
+            model_dir / f"whisper-{size}",  # 历史 modelscope 布局
+        ]
+    elif ttype == "mlx-whisper":
+        try:
+            from app.transcriber.mlx_whisper_transcriber import resolve_mlx_repo_id
+            repo = resolve_mlx_repo_id(size)
+        except Exception as e:
+            return R.error(msg=f"未知模型: {size} ({e})")
+        targets = [Path(get_model_dir("mlx-whisper")) / repo]
+    elif ttype == "funasr":
+        repos = FUNASR_MODEL_REPOS.get(size)
+        if not repos:
+            return R.error(msg=f"未知模型: {size}")
+        # 共享依赖保护：vad/punc 被多个 FunASR 模型共用，
+        # 只删「其他已下载模型」不再需要的仓库
+        keep = set()
+        for other, other_repos in FUNASR_MODEL_REPOS.items():
+            if other != size and _check_funasr_model_exists(other):
+                keep.update(other_repos)
+        targets = [_modelscope_cache_root() / r for r in repos if r not in keep]
+    else:
+        return R.error(msg=f"未知转写器类型: {ttype}")
+
+    removed = 0
+    for t in targets:
+        if t.exists():
+            shutil.rmtree(t, ignore_errors=True)
+            removed += 1
+            logger.info(f"已卸载模型目录: {t}")
+    _downloading.pop(dl_key, None)  # 清掉历史下载状态，避免显示残留
+
+    if removed == 0:
+        return R.success(msg="模型不存在或已卸载")
+    return R.success(msg="模型已卸载")
+
+
 @router.post("/transcriber_download")
 def download_transcriber_model(data: ModelDownloadRequest, background_tasks: BackgroundTasks):
-    """触发后台下载指定的 whisper 模型。"""
+    """触发后台下载指定的转写模型（whisper / mlx-whisper / funasr）。"""
+    # FunASR：model_size 字段承载 FunASR 模型名（复用既有请求结构）
+    if data.transcriber_type == "funasr":
+        if data.model_size not in FUNASR_MODEL_REPOS:
+            return R.error(msg=f"不支持预下载的 FunASR 模型: {data.model_size}")
+        key = f"funasr-{data.model_size}"
+        if _downloading.get(key) == "downloading":
+            return R.success(msg="模型正在下载中")
+        background_tasks.add_task(_do_download_funasr, data.model_size)
+        return R.success(msg="模型下载已开始")
+
     if data.model_size not in WHISPER_MODEL_SIZES:
         return R.error(msg=f"不支持的模型大小: {data.model_size}")
 

@@ -42,25 +42,36 @@ class TranscriberConfigManager:
         )
         # 防御：存储/环境变量里的值不在可选列表时回退到第一个，
         # 避免前端下拉框初始化为空或指向不存在的引擎/模型
-        if ttype not in ("fast-whisper", "bcut", "kuaishou", "groq", "mlx-whisper"):
+        if ttype not in ("fast-whisper", "bcut", "kuaishou", "groq", "mlx-whisper", "funasr"):
             ttype = "fast-whisper"
-        if size not in ("tiny", "base", "small", "medium", "large-v3", "large-v3-turbo"):
+        # "custom" 表示用户自定义本地/HF whisper 模型（路径见 whisper_custom_model）
+        if size not in ("tiny", "base", "small", "medium", "large-v3", "large-v3-turbo", "custom"):
             size = "tiny"
         return {
             "transcriber_type": ttype,
             "whisper_model_size": size,
+            # 自定义 whisper 模型：本地 CTranslate2 目录 或 HF 仓库 id
+            "whisper_custom_model": (data.get("whisper_custom_model") or "").strip(),
+            # FunASR 模型名/路径（modelscope id 或本地目录），默认中文 paraformer-zh
+            "funasr_model": (data.get("funasr_model") or "paraformer-zh").strip(),
         }
 
     def update_config(
         self,
         transcriber_type: str,
         whisper_model_size: Optional[str] = None,
+        whisper_custom_model: Optional[str] = None,
+        funasr_model: Optional[str] = None,
     ) -> Dict[str, Any]:
         """更新转写器配置并持久化。"""
         data = self._read()
         data["transcriber_type"] = transcriber_type
         if whisper_model_size is not None:
             data["whisper_model_size"] = whisper_model_size
+        if whisper_custom_model is not None:
+            data["whisper_custom_model"] = whisper_custom_model.strip()
+        if funasr_model is not None:
+            data["funasr_model"] = funasr_model.strip()
         self._write(data)
         return self.get_config()
 
@@ -89,8 +100,32 @@ class TranscriberConfigManager:
             "downloading": False,
             "reason": "",
         }
+        # FunASR：可选引擎，需安装 funasr+torch。模型经 modelscope 首跑自动下载，
+        # 不做预下载门禁，只确认引擎可用，否则给安装指引。
+        if ttype == "funasr":
+            try:
+                from app.transcriber.transcriber_provider import FUNASR_AVAILABLE
+            except Exception:
+                FUNASR_AVAILABLE = True  # 检查不了就放行，交给后续流程报错
+            if not FUNASR_AVAILABLE:
+                result["ready"] = False
+                result["reason"] = (
+                    "FunASR 引擎当前不可用（未安装）。请安装依赖："
+                    "pip install funasr torch torchaudio，安装后重启后端；或切换到其他转写引擎。"
+                )
+            return result
+
         if ttype not in ("fast-whisper", "mlx-whisper"):
             return result  # 在线引擎无需本地模型
+
+        # fast-whisper 自定义模型：路径/仓库 id 由用户自负，本地目录存在即就绪；
+        # 仓库 id 也放行（首跑联网下载），不进预设档位的下载门禁。
+        if ttype == "fast-whisper" and size == "custom":
+            custom = cfg.get("whisper_custom_model") or ""
+            if not custom:
+                result["ready"] = False
+                result["reason"] = "已选「自定义」Whisper 模型，但未填写模型路径或仓库 id。"
+            return result
 
         # mlx-whisper 还要求引擎本身可用（包已安装且原生库能加载）。
         # 配置可能是在引擎可用时保存的，之后换了环境/重装应用就失效了——

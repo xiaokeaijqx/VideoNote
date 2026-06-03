@@ -32,6 +32,8 @@ exceptiongroup==1.2.2
 fastapi==0.115.12
 fastapi-cli==0.0.7
 faster-whisper==1.1.1
+# 可选转写引擎 FunASR（阿里·中文，效果常优于 Whisper）：默认不安装，依赖较重（含 torch，约 2GB）。
+# 需要时手动安装后即可在「音频转写配置」选用：pip install funasr torch torchaudio
 ffmpeg-python==0.2.0
 filelock==3.18.0
 flatbuffers==25.2.10
