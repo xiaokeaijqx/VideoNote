@@ -3,6 +3,28 @@ from typing import Optional
 import requests
 
 
+# 匹配文本中的第一个 http(s) 链接（贪到首个空白/中文/引号前为止）
+_URL_RE = re.compile(r"https?://[^\s一-鿿\"'）)】>，。、]+")
+
+
+def clean_url(text: str) -> str:
+    """从「分享文案」里提取干净的链接。
+
+    小红书/抖音/B 站的分享内容常是「标题 + 一堆不可见字符 + 链接」整段，
+    直接丢给 yt-dlp 会被当成非法 URL（generic extractor 报 is not a valid URL）。
+    这里：去掉 BOM/零宽等不可见字符，再抓出第一个 http(s) 链接；
+    没抓到链接就返回去空白后的原文（兼容本地路径等非 URL 输入）。
+    """
+    if not text:
+        return text
+    # 去掉 BOM/零宽空格/零宽连接符等不可见字符
+    cleaned = re.sub(r"[﻿​‌‍⁠]", "", text)
+    m = _URL_RE.search(cleaned)
+    if m:
+        return m.group(0).strip().rstrip(".,;")
+    return cleaned.strip()
+
+
 def extract_video_id(url: str, platform: str) -> Optional[str]:
     """
     从视频链接中提取视频 ID

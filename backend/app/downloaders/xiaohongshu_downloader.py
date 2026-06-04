@@ -20,7 +20,7 @@ from app.downloaders.base import Downloader, DownloadQuality
 from app.models.notes_model import AudioDownloadResult
 from app.services.cookie_manager import CookieConfigManager
 from app.utils.path_helper import get_data_dir
-from app.utils.url_parser import extract_video_id
+from app.utils.url_parser import extract_video_id, clean_url
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +63,8 @@ class XiaohongshuDownloader(Downloader, ABC):
         need_video: Optional[bool] = False,
         skip_download: bool = False,
     ) -> AudioDownloadResult:
+        # 从分享文案中提取干净链接（标题+不可见字符+短链 整段粘贴也能用）
+        video_url = clean_url(video_url)
         if output_dir is None:
             output_dir = get_data_dir()
         if not output_dir:
@@ -105,6 +107,7 @@ class XiaohongshuDownloader(Downloader, ABC):
         video_url: str,
         output_dir: Union[str, None] = None,
     ) -> str:
+        video_url = clean_url(video_url)
         if output_dir is None:
             output_dir = get_data_dir()
         video_id = extract_video_id(video_url, "xiaohongshu")
