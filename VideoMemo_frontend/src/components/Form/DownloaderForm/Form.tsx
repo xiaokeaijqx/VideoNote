@@ -45,6 +45,21 @@ const CookieSchema = z.object({
   browser: z.string().optional(),
 })
 
+// 各平台 Cookie 获取说明（显示在 Cookie 输入框下方）
+const COOKIE_TIPS: Record<string, string> = {
+  douyin:
+    '抖音风控较严，需登录后的完整 Cookie：① 普通窗口（非无痕）打开并登录 douyin.com，等页面完全加载；' +
+    '② F12 → Network → 刷新 → 点最顶部「www.douyin.com」文档请求 → Request Headers → 复制整条 Cookie；' +
+    '③ 粘贴到此处保存。尽量包含 ttwid / sessionid / s_v_web_id 等字段（s_v_web_id 不一定有，能复制多全就多全）。' +
+    'Cookie 会过期，失效后重新复制即可；若粘完整 Cookie 仍失败，多为抖音风控升级所致。',
+  xiaohongshu:
+    '小红书部分内容需登录 Cookie：登录 xiaohongshu.com 后从开发者工具复制完整 Cookie 粘贴于此。' +
+    '链接可直接整段粘贴分享文案（会自动提取其中链接）。',
+  bilibili:
+    'B 站需要 Cookie 才能拿到字幕、以及更高清晰度：登录 bilibili.com 后复制完整 Cookie（含 SESSDATA）粘贴于此。',
+  kuaishou: '快手部分内容需登录 Cookie：登录 kuaishou.com 后复制完整 Cookie 粘贴于此。',
+}
+
 const DownloaderForm = () => {
   const form = useForm({
     resolver: zodResolver(CookieSchema),
@@ -106,6 +121,11 @@ const DownloaderForm = () => {
                 <FormControl>
                   <Input {...field} placeholder="输入 Cookie（留空保存可清除）" />
                 </FormControl>
+                {id && COOKIE_TIPS[id] && (
+                  <div className="rounded-md bg-amber-50 p-2 text-xs leading-relaxed text-amber-700">
+                    {COOKIE_TIPS[id]}
+                  </div>
+                )}
                 <FormMessage />
               </FormItem>
             )}
