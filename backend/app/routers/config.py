@@ -28,6 +28,11 @@ class CookieUpdateRequest(BaseModel):
     browser: Optional[str] = None
 
 
+class BrowserCookieSyncRequest(BaseModel):
+    platform: str
+    browser: str
+
+
 @router.get("/get_downloader_cookie/{platform}")
 def get_cookie(platform: str):
     cookie = cookie_manager.get(platform) or ""
@@ -82,6 +87,18 @@ def update_cookie(data: CookieUpdateRequest):
     else:
         cookie_manager.set(data.platform, cookie, browser=browser if browser is not None else None)
     return R.success()
+
+
+@router.post("/sync_downloader_cookie_from_browser")
+def sync_cookie_from_browser(data: BrowserCookieSyncRequest):
+    from app.services.browser_cookie import BrowserCookieError, sync_browser_cookie
+
+    try:
+        result = sync_browser_cookie(data.platform, data.browser, manager=cookie_manager)
+        return R.success(data=result, msg=f"已从浏览器读取 {result['count']} 条 Cookie")
+    except BrowserCookieError as exc:
+        return R.error(msg=str(exc))
+
 
 class TranscriberConfigRequest(BaseModel):
     transcriber_type: str

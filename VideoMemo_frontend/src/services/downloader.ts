@@ -6,11 +6,23 @@ export const getDownloaderCookie = async id => {
 
 export const updateDownloaderCookie = async (data: {
   cookie: string
-  platform: any
+  platform: string
   /** 可选：从浏览器读 cookie（yt-dlp cookiesfrombrowser）。空字符串=清除。 */
   browser?: string
 }) => {
   return await request.post('/update_downloader_cookie', data)
+}
+
+export const syncDownloaderCookieFromBrowser = async (data: {
+  platform: string
+  browser: string
+}): Promise<{
+  platform: string
+  browser: string
+  cookie: string
+  count: number
+}> => {
+  return await request.post('/sync_downloader_cookie_from_browser', data)
 }
 
 export interface CustomPlatform {

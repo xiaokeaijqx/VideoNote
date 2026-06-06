@@ -5,7 +5,7 @@ import toast from 'react-hot-toast'
 import ProviderCard from '@/components/Form/DownloaderForm/providerCard.tsx'
 import { Button } from '@/components/ui/button.tsx'
 import PlatformLetterAvatar from '@/components/PlatformLetterAvatar'
-import { videoPlatforms } from '@/constant/note.ts'
+import { COOKIE_OPTIONAL_PLATFORMS, videoPlatforms } from '@/constant/note.ts'
 import {
   listCustomPlatforms,
   deleteCustomPlatform,
@@ -16,11 +16,14 @@ import CustomPlatformDialog from './CustomPlatformDialog'
 
 const Options = () => {
   const navigate = useNavigate()
-  // @ts-ignore
-  const { id: currentId } = useParams()
+  const { id: currentId } = useParams<{ id: string }>()
 
   const [custom, setCustom] = useState<CustomPlatform[]>([])
   const [dialogOpen, setDialogOpen] = useState(false)
+  const optionalPlatformNames = videoPlatforms
+    .filter(platform => COOKIE_OPTIONAL_PLATFORMS.has(platform.value))
+    .map(platform => platform.label)
+    .join('、')
 
   const refresh = async () => {
     try {
@@ -51,6 +54,10 @@ const Options = () => {
   return (
     <div className="flex flex-col gap-2">
       <div className="text-sm font-light">下载器配置</div>
+      <div className="rounded-md border border-emerald-100 bg-emerald-50 p-2 text-xs leading-relaxed text-emerald-700">
+        {optionalPlatformNames} 多数公开内容通常不需要 Cookie，可直接生成笔记；
+        只有遇到登录校验、受限内容或下载失败时，再配置 Cookie / Token。
+      </div>
       <div className="flex flex-col gap-1">
         {videoPlatforms &&
           videoPlatforms.map((provider, index) => {
@@ -101,7 +108,7 @@ const Options = () => {
                   e.stopPropagation()
                   handleDelete(cp.key)
                 }}
-                className="rounded p-1.5 text-gray-400 opacity-0 transition-opacity hover:bg-red-50 hover:text-red-600 group-hover:opacity-100"
+                className="rounded p-1.5 text-gray-400 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-red-50 hover:text-red-600"
               >
                 <Trash2 className="h-4 w-4" />
               </button>

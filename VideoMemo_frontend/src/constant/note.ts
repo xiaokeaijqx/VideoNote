@@ -35,3 +35,5 @@ export const videoPlatforms = [
   { label: '小红书', value: 'xiaohongshu', logo: XhsLogo },
   { label: '本地视频', value: 'local', logo: LocalLogo },
 ] as const
+
+export const COOKIE_OPTIONAL_PLATFORMS = new Set(['youtube', 'douyin'])
