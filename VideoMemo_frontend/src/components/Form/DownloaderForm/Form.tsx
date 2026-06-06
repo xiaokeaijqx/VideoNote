@@ -48,10 +48,8 @@ const CookieSchema = z.object({
 // 各平台 Cookie 获取说明（显示在 Cookie 输入框下方）
 const COOKIE_TIPS: Record<string, string> = {
   douyin:
-    '抖音风控较严，需登录后的完整 Cookie：① 普通窗口（非无痕）打开并登录 douyin.com，等页面完全加载；' +
-    '② F12 → Network → 刷新 → 点最顶部「www.douyin.com」文档请求 → Request Headers → 复制整条 Cookie；' +
-    '③ 粘贴到此处保存。尽量包含 ttwid / sessionid / s_v_web_id 等字段（s_v_web_id 不一定有，能复制多全就多全）。' +
-    'Cookie 会过期，失效后重新复制即可；若粘完整 Cookie 仍失败，多为抖音风控升级所致。',
+    '抖音现在优先解析移动端分享页公开数据，通常不需要 Cookie。' +
+    '可直接粘贴 v.douyin.com 短链、www.douyin.com/video|note 链接，或整段分享文案。',
   xiaohongshu:
     '小红书部分内容需登录 Cookie：登录 xiaohongshu.com 后从开发者工具复制完整 Cookie 粘贴于此。' +
     '链接可直接整段粘贴分享文案（会自动提取其中链接）。',

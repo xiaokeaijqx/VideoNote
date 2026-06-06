@@ -44,6 +44,9 @@ import { detectPlatform, getCustomPlatforms, setCustomPlatforms } from '@/utils/
 import { listCustomPlatforms, type CustomPlatform } from '@/services/downloader'
 import PlatformLetterAvatar from '@/components/PlatformLetterAvatar'
 
+const douyinUrlInTextPattern =
+  /https?:\/\/(?:v\.douyin\.com|www\.douyin\.com|www\.iesdouyin\.com|m\.douyin\.com)\S*/
+
 /* -------------------- 校验 Schema -------------------- */
 const formSchema = z
   .object({
@@ -72,6 +75,9 @@ const formSchema = z
     else {
       if (!video_url) {
         ctx.addIssue({ code: 'custom', message: '视频链接不能为空', path: ['video_url'] })
+      }
+      else if (platform === 'douyin' && douyinUrlInTextPattern.test(video_url)) {
+        return
       }
       else {
         try {
