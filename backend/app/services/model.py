@@ -74,6 +74,39 @@ class ModelService:
                 "created_at": model.get("created_at", None),  # 如果有created_at字段
             })
         return formatted
+
+    @staticmethod
+    def _extract_remote_models(raw_models) -> list:
+        if raw_models is None:
+            return []
+        if isinstance(raw_models, dict):
+            raw_models = raw_models.get("data", raw_models.get("models", raw_models))
+        elif hasattr(raw_models, "data"):
+            raw_models = raw_models.data
+
+        if isinstance(raw_models, list):
+            return raw_models
+        return []
+
+    @staticmethod
+    def _serialize_remote_model(model) -> dict:
+        if isinstance(model, dict):
+            return model
+        if hasattr(model, "model_dump"):
+            return model.model_dump()
+        if hasattr(model, "dict"):
+            return model.dict()
+
+        model_id = getattr(model, "id", None)
+        if model_id:
+            return {
+                "id": model_id,
+                "object": getattr(model, "object", "model"),
+                "created": getattr(model, "created", None),
+                "owned_by": getattr(model, "owned_by", None),
+            }
+        return {}
+
     @staticmethod
     def get_enabled_models_by_provider( provider_id: str|int,):
         from app.db.model_dao import get_models_by_provider
@@ -87,8 +120,12 @@ class ModelService:
             provider = ProviderService.get_provider_by_id(provider_id)
 
             models = ModelService.get_model_list(provider["id"], verbose=verbose)
-            print(type(models))
-            serializable_models = [m.dict() for m in models.data]
+            remote_models = ModelService._extract_remote_models(models)
+            serializable_models = [
+                item
+                for item in (ModelService._serialize_remote_model(model) for model in remote_models)
+                if item.get("id")
+            ]
             model_list = {
                 "models": serializable_models
             }
