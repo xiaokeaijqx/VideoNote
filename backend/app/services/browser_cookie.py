@@ -1,3 +1,6 @@
+import subprocess
+import sys
+import webbrowser
 from typing import Optional
 
 from app.services.cookie_manager import CookieConfigManager
@@ -9,6 +12,22 @@ PLATFORM_COOKIE_DOMAINS = {
     "douyin": ("douyin.com", "iesdouyin.com"),
     "kuaishou": ("kuaishou.com",),
     "xiaohongshu": ("xiaohongshu.com", "xhslink.com"),
+}
+
+PLATFORM_LOGIN_URLS = {
+    "bilibili": "https://www.bilibili.com/",
+    "youtube": "https://www.youtube.com/",
+    "douyin": "https://www.douyin.com/",
+    "kuaishou": "https://www.kuaishou.com/",
+    "xiaohongshu": "https://www.xiaohongshu.com/",
+}
+
+PLATFORM_LABELS = {
+    "bilibili": "B站",
+    "youtube": "YouTube",
+    "douyin": "抖音",
+    "kuaishou": "快手",
+    "xiaohongshu": "小红书",
 }
 
 
@@ -53,6 +72,29 @@ def _format_cookie_pairs(cookies, platform: str) -> list[str]:
     return pairs
 
 
+def _open_url_in_browser(url: str, browser: str) -> bool:
+    browser = (browser or "").strip().lower()
+    if sys.platform == "darwin" and browser:
+        mac_apps = {
+            "chrome": "Google Chrome",
+            "edge": "Microsoft Edge",
+            "firefox": "Firefox",
+            "safari": "Safari",
+            "brave": "Brave Browser",
+            "chromium": "Chromium",
+            "opera": "Opera",
+            "vivaldi": "Vivaldi",
+        }
+        app_name = mac_apps.get(browser)
+        if app_name:
+            try:
+                subprocess.Popen(["open", "-a", app_name, url])
+                return True
+            except Exception:
+                pass
+    return webbrowser.open_new_tab(url)
+
+
 def sync_browser_cookie(
     platform: str,
     browser: str,
@@ -74,8 +116,12 @@ def sync_browser_cookie(
 
     pairs = _format_cookie_pairs(cookies, platform)
     if not pairs:
+        login_url = PLATFORM_LOGIN_URLS.get(platform)
+        opened = bool(login_url and _open_url_in_browser(login_url, browser))
+        label = PLATFORM_LABELS.get(platform, platform)
+        opened_hint = f"已打开{label}页面，登录后再点击一键获取。" if opened else ""
         raise BrowserCookieError(
-            f"未找到 {platform} 对应的浏览器 Cookie，请先在该浏览器登录对应平台。"
+            f"未找到 {platform} 对应的浏览器 Cookie，请先在该浏览器登录对应平台。{opened_hint}"
         )
 
     cookie_str = "; ".join(pairs)

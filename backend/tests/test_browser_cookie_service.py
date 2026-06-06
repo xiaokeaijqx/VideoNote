@@ -38,15 +38,23 @@ def test_sync_browser_cookie_filters_platform_domain_and_persists(tmp_path, monk
 
 def test_sync_browser_cookie_raises_when_browser_has_no_platform_cookie(tmp_path, monkeypatch):
     manager = CookieConfigManager(filepath=str(tmp_path / "downloader.json"))
+    opened = []
 
     monkeypatch.setattr(
         "app.services.browser_cookie._extract_cookies_from_browser",
         lambda browser: [SimpleNamespace(domain=".example.com", name="SID", value="abc")],
+    )
+    monkeypatch.setattr(
+        "app.services.browser_cookie._open_url_in_browser",
+        lambda url, browser: opened.append((url, browser)) or True,
     )
 
     try:
         sync_browser_cookie("bilibili", "safari", manager=manager)
     except BrowserCookieError as exc:
         assert "未找到 bilibili 对应的浏览器 Cookie" in str(exc)
+        assert "已打开B站页面" in str(exc)
     else:
         raise AssertionError("Expected BrowserCookieError")
+
+    assert opened == [("https://www.bilibili.com/", "safari")]
