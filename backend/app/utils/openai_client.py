@@ -35,11 +35,21 @@ def build_openai_client(
     if timeout is not None:
         kwargs["timeout"] = timeout
 
+    # 始终显式传入 httpx.Client(trust_env=False)：
+    # 本机环境里常见的 NO_PROXY=::1 会触发 httpx 解析异常
+    # `Invalid port: ':1'`，导致 OpenAI 客户端还没发请求就失败。
+    # 应用代理仍由 ProxyConfigManager 统一读取并显式注入。
+    import httpx
+
+    http_client_kwargs = {
+        "timeout": timeout or 600.0,
+        "trust_env": False,
+    }
     proxy_url = ProxyConfigManager().get_proxy_url()
     if proxy_url:
-        # 延迟 import httpx：仅在确实要走代理时才需要
-        import httpx
-        kwargs["http_client"] = httpx.Client(proxy=proxy_url, timeout=timeout or 600.0)
+        http_client_kwargs["proxy"] = proxy_url
         logger.info(f"OpenAI 客户端走代理: {proxy_url}")
+
+    kwargs["http_client"] = httpx.Client(**http_client_kwargs)
 
     return OpenAI(**kwargs)
