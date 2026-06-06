@@ -80,8 +80,9 @@ _PLATFORM_LABELS = {
     "xiaohongshu": "小红书",
 }
 
-# 这些平台没配 Cookie 时下载/解析大概率失败
-_COOKIE_RECOMMENDED_PLATFORMS = {"douyin", "kuaishou", "xiaohongshu", "bilibili"}
+# 这些平台没配 Cookie 时下载/解析大概率失败。抖音现在走移动端分享页 SSR，
+# 不再依赖 Cookie 签名接口，解析失败时不要误导用户去补 Cookie。
+_COOKIE_RECOMMENDED_PLATFORMS = {"kuaishou", "xiaohongshu", "bilibili"}
 
 # 报错信息中出现这些特征词时，多半与登录态 / Cookie 有关
 _COOKIE_ERROR_SIGNALS = (

@@ -1,10 +1,8 @@
 from fastapi import FastAPI
 
-from .routers import note, provider, model, config, chat, flashcard
-
-
-
 def create_app(lifespan) -> FastAPI:
+    from .routers import note, provider, model, config, chat, flashcard
+
     app = FastAPI(title="VideoMemo",lifespan=lifespan)
     app.include_router(note.router, prefix="/api")
     app.include_router(provider.router, prefix="/api")
