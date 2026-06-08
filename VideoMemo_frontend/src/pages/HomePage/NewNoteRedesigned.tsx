@@ -11,12 +11,15 @@ import {
   Pause as PauseIcon,
   Play,
   Plus,
+  RotateCcw,
+  Save,
   Sparkles,
   Upload,
   X as XIcon,
   AudioWaveform,
   ArrowRight,
   Bot,
+  Newspaper,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { generateNote } from '@/services/note.ts'
@@ -34,6 +37,12 @@ import { Segmented } from '@/components/design/Segmented'
 import { VmSelect } from '@/components/design/VmSelect'
 import { GenHero, Spinner } from '@/components/design/animations'
 import { useVmLang, trVm } from '@/i18n/redesign'
+import {
+  getDefaultPromptTemplate,
+  loadPromptTemplates,
+  resetPromptTemplate,
+  savePromptTemplate,
+} from '@/utils/promptTemplates'
 
 const QUALITIES = [
   { value: 'fast', zh: '快速', en: 'Fast' },
@@ -56,6 +65,8 @@ const STEP_DEFS = [
   { key: 'SUCCESS', zhKey: 'step_done', icon: <Check size={18} /> },
 ]
 
+const DEFAULT_FORMATS = ['toc', 'screenshot', 'summary']
+
 /* -------------------- 未运行草稿持久化 -------------------- */
 // 新建笔记表单内容自动存 localStorage：切走页面再回来（组件重挂载）恢复上次还没提交运行的内容；
 // 提交成功后清除。
@@ -72,6 +83,7 @@ interface NoteDraft {
   cols?: number
   rows?: number
   extras?: string
+  promptTemplateId?: string
 }
 function loadDraft(): NoteDraft {
   try {
@@ -108,16 +120,18 @@ const NewNoteRedesigned: FC = () => {
   const [modelName, setModelName] = useState(draft.modelName ?? '')
   const [style, setStyle] = useState(draft.style ?? 'minimal')
   const [quality, setQuality] = useState(draft.quality ?? 'medium')
-  // 默认只勾「目录 / AI 总结」，跟原本的 NoteForm 一致。
+  // 默认生成「目录 / 原片截图 / AI 总结」。
   // 「原片跳转」（link）会让 LLM 改用线性时间组织内容，破坏概念分组的笔记结构，
-  // 所以保持需要用户主动勾选。截图依赖视频理解，没开 vision 之前保持关闭。
-  const [formats, setFormats] = useState<string[]>(draft.formats ?? ['toc', 'summary'])
+  // 所以保持需要用户主动勾选。
+  const [formats, setFormats] = useState<string[]>(draft.formats ?? DEFAULT_FORMATS)
   const [vision, setVision] = useState(draft.vision ?? false)
   // 采样间隔默认 30s，上限 300s；用 number | '' 允许删空后重新输入
   const [intervalSec, setIntervalSec] = useState<number | ''>(draft.intervalSec ?? 30)
   const [cols, setCols] = useState(draft.cols ?? 2)
   const [rows, setRows] = useState(draft.rows ?? 2)
   const [extras, setExtras] = useState(draft.extras ?? '')
+  const [promptTemplateId, setPromptTemplateId] = useState(draft.promptTemplateId ?? 'technical')
+  const [promptTemplates, setPromptTemplates] = useState(() => loadPromptTemplates())
   const [isUploading, setIsUploading] = useState(false)
   const [uploadOk, setUploadOk] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -139,12 +153,39 @@ const NewNoteRedesigned: FC = () => {
     try {
       localStorage.setItem(
         DRAFT_KEY,
-        JSON.stringify({ platform, url, modelName, style, quality, formats, vision, intervalSec, cols, rows, extras }),
+        JSON.stringify({
+          platform,
+          url,
+          modelName,
+          style,
+          quality,
+          formats,
+          vision,
+          intervalSec,
+          cols,
+          rows,
+          extras,
+          promptTemplateId,
+        })
       )
     } catch {
       /* ignore quota / 隐私模式异常 */
     }
-  }, [view, platform, url, modelName, style, quality, formats, vision, intervalSec, cols, rows, extras])
+  }, [
+    view,
+    platform,
+    url,
+    modelName,
+    style,
+    quality,
+    formats,
+    vision,
+    intervalSec,
+    cols,
+    rows,
+    extras,
+    promptTemplateId,
+  ])
 
   useEffect(() => {
     loadEnabledModels()
@@ -174,8 +215,29 @@ const NewNoteRedesigned: FC = () => {
   }, [customPlatformList])
 
   const detectedShow = !!detectPlatform(url)
+  const screenshotEnabled = formats.includes('screenshot')
   const toggleFmt = (v: string) =>
     setFormats(f => (f.includes(v) ? f.filter(x => x !== v) : [...f, v]))
+  const currentPromptTemplate = promptTemplates.find(template => template.id === promptTemplateId)
+  const applyPromptTemplate = () => {
+    if (!currentPromptTemplate) return
+    setExtras(currentPromptTemplate.prompt)
+    toast.success(trVm('promptTemplateApplied', lang))
+  }
+  const handleSavePromptTemplate = () => {
+    if (!currentPromptTemplate) return
+    savePromptTemplate(currentPromptTemplate.id, extras)
+    setPromptTemplates(loadPromptTemplates())
+    toast.success(trVm('promptTemplateSaved', lang))
+  }
+  const handleResetPromptTemplate = () => {
+    if (!currentPromptTemplate) return
+    resetPromptTemplate(currentPromptTemplate.id)
+    const defaults = getDefaultPromptTemplate(currentPromptTemplate.id)
+    setPromptTemplates(loadPromptTemplates())
+    if (defaults) setExtras(defaults.prompt)
+    toast.success(trVm('promptTemplateReset', lang))
+  }
 
   const handleFileUpload = async (file: File) => {
     const fd = new FormData()
@@ -201,7 +263,11 @@ const NewNoteRedesigned: FC = () => {
       return
     }
     if (!modelName) {
-      toast.error(lang === 'zh' ? '请先在「设置 → AI 模型」添加模型' : 'Add a model in Settings → AI models first')
+      toast.error(
+        lang === 'zh'
+          ? '请先在「设置 → AI 模型」添加模型'
+          : 'Add a model in Settings → AI models first'
+      )
       navigate('/settings/model')
       return
     }
@@ -242,7 +308,7 @@ const NewNoteRedesigned: FC = () => {
               : 'Transcriber model is downloading, please wait'
             : lang === 'zh'
               ? '转写模型尚未下载，请先去「音频转写配置」页下载'
-              : 'Transcriber model not downloaded — go to Transcriber settings',
+              : 'Transcriber model not downloaded — go to Transcriber settings'
         )
         if (!downloading) navigate('/settings/transcriber')
       }
@@ -284,9 +350,15 @@ const NewNoteRedesigned: FC = () => {
     <div className="vm-content-inner narrow vm-fade-up">
       {/* Source */}
       <div className="vm-card vm-card-pad" style={{ marginBottom: 18 }}>
-        <div className="vm-row" style={{ marginBottom: 14 }}>
-          <div className="vm-sec-title">{trVm('videoSource', lang)}</div>
-          <div className="vm-sec-en">{lang === 'zh' ? 'Video source' : '视频来源'}</div>
+        <div className="vm-row" style={{ justifyContent: 'space-between', marginBottom: 14 }}>
+          <div className="vm-row">
+            <div className="vm-sec-title">{trVm('videoSource', lang)}</div>
+            <div className="vm-sec-en">{lang === 'zh' ? 'Video source' : '视频来源'}</div>
+          </div>
+          <button className="vm-btn vm-btn-outline vm-btn-sm" onClick={() => navigate('/articles')}>
+            <Newspaper size={15} />
+            文章总结
+          </button>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
           <VmSelect
@@ -354,9 +426,7 @@ const NewNoteRedesigned: FC = () => {
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
                       }}
-                      onMouseEnter={e =>
-                        (e.currentTarget.style.background = 'var(--vm-surface-2)')
-                      }
+                      onMouseEnter={e => (e.currentTarget.style.background = 'var(--vm-surface-2)')}
                       onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                     >
                       {u}
@@ -491,17 +561,10 @@ const NewNoteRedesigned: FC = () => {
         >
           <div className="vm-chip-row">
             {noteFormats.map(f => {
-              const disabled =
-                (f.value === 'link' && platform === 'local') ||
-                (f.value === 'screenshot' && !vision)
+              const disabled = f.value === 'link' && platform === 'local'
               const on = formats.includes(f.value)
               return (
-                <Chip
-                  key={f.value}
-                  on={on}
-                  disabled={disabled}
-                  onClick={() => toggleFmt(f.value)}
-                >
+                <Chip key={f.value} on={on} disabled={disabled} onClick={() => toggleFmt(f.value)}>
                   <span
                     style={{
                       display: 'grid',
@@ -515,12 +578,24 @@ const NewNoteRedesigned: FC = () => {
               )
             })}
           </div>
+          {screenshotEnabled && (
+            <div className="vm-screenshot-note vm-fade-up">
+              <div className="vm-row" style={{ gap: 8, alignItems: 'center' }}>
+                <Clock size={15} />
+                <span className="vm-field-label">{trVm('screenshotImpactTitle', lang)}</span>
+              </div>
+              <div className="vm-field-hint">{trVm('screenshotImpactHint', lang)}</div>
+              <div className="vm-field-hint">{trVm('screenshotLongHint', lang)}</div>
+            </div>
+          )}
         </Field>
 
         <div className="vm-divider" />
         <div className="vm-row" style={{ justifyContent: 'space-between' }}>
           <div className="vm-row" style={{ gap: 11 }}>
-            <span style={{ color: vision ? 'var(--vm-primary)' : 'var(--vm-faint)', display: 'grid' }}>
+            <span
+              style={{ color: vision ? 'var(--vm-primary)' : 'var(--vm-faint)', display: 'grid' }}
+            >
               <ImageIcon size={19} />
             </span>
             <div>
@@ -588,6 +663,33 @@ const NewNoteRedesigned: FC = () => {
 
       {/* Extras */}
       <div className="vm-card vm-card-pad" style={{ marginBottom: 22 }}>
+        <Field
+          label={trVm('promptTemplate', lang)}
+          en={lang === 'zh' ? 'Prompt template' : 'Prompt 模板'}
+          hint={currentPromptTemplate?.description}
+        >
+          <div className="vm-prompt-template-row">
+            <VmSelect
+              value={promptTemplateId}
+              onChange={setPromptTemplateId}
+              options={promptTemplates.map(template => ({
+                value: template.id,
+                label: template.label,
+              }))}
+            />
+            <button className="vm-btn vm-btn-outline vm-btn-sm" onClick={applyPromptTemplate}>
+              <Sparkles size={15} /> {trVm('applyPromptTemplate', lang)}
+            </button>
+          </div>
+          <div className="vm-prompt-template-actions">
+            <button className="vm-tool-btn" onClick={handleSavePromptTemplate}>
+              <Save size={14} /> {trVm('savePromptTemplate', lang)}
+            </button>
+            <button className="vm-tool-btn" onClick={handleResetPromptTemplate}>
+              <RotateCcw size={14} /> {trVm('resetPromptTemplate', lang)}
+            </button>
+          </div>
+        </Field>
         <Field label={trVm('notes', lang)} en={lang === 'zh' ? 'Optional' : '可选'}>
           <textarea
             className="vm-textarea"
@@ -635,7 +737,7 @@ const GenerationFlow: FC<{
     if (paused || idx >= STEP_DEFS.length - 1) return
     timer.current = window.setTimeout(
       () => setIdx(i => Math.min(i + 1, STEP_DEFS.length - 1)),
-      idx === 2 ? 2600 : 1700,
+      idx === 2 ? 2600 : 1700
     )
     return () => {
       if (timer.current) window.clearTimeout(timer.current)
@@ -698,11 +800,19 @@ const GenerationFlow: FC<{
                   </div>
                 )}
                 <div className="vm-step-dot">
-                  {i < idx ? <Check size={20} strokeWidth={3} /> : i === idx && !done ? <Spinner size={18} /> : s.icon}
+                  {i < idx ? (
+                    <Check size={20} strokeWidth={3} />
+                  ) : i === idx && !done ? (
+                    <Spinner size={18} />
+                  ) : (
+                    s.icon
+                  )}
                 </div>
                 <div className="vm-step-label">{trVm(s.zhKey, lang)}</div>
                 <div className="vm-step-en">
-                  {lang === 'zh' ? trVm(s.zhKey, 'en') : s.key.slice(0, 1) + s.key.slice(1).toLowerCase()}
+                  {lang === 'zh'
+                    ? trVm(s.zhKey, 'en')
+                    : s.key.slice(0, 1) + s.key.slice(1).toLowerCase()}
                 </div>
               </div>
             ))}

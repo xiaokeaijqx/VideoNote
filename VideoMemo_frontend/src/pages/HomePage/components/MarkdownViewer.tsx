@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, memo, FC } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback, memo, FC } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import { Button } from '@/components/ui/button.tsx'
@@ -14,6 +14,7 @@ import {
   AudioWaveform,
   Link as LinkIcon,
   Sparkles,
+  ListTree,
 } from 'lucide-react'
 import { GenHero, Spinner } from '@/components/design/animations'
 import {
@@ -26,9 +27,22 @@ import {
   type NoteVersion,
 } from '@/services/note.ts'
 import MDEditor from '@uiw/react-md-editor'
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
-import { Select as UiSelect, SelectContent as UiSelectContent, SelectItem as UiSelectItem, SelectTrigger as UiSelectTrigger, SelectValue as UiSelectValue } from '@/components/ui/select'
+import {
+  Select as UiSelect,
+  SelectContent as UiSelectContent,
+  SelectItem as UiSelectItem,
+  SelectTrigger as UiSelectTrigger,
+  SelectValue as UiSelectValue,
+} from '@/components/ui/select'
 import { Loader2, Save, X } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import Error from '@/components/Lottie/error.tsx'
@@ -52,6 +66,12 @@ import TranscriptViewer from '@/pages/HomePage/components/transcriptViewer.tsx'
 import MarkmapEditor from '@/pages/HomePage/components/MarkmapComponent.tsx'
 import ChatPanel from '@/pages/HomePage/components/ChatPanel.tsx'
 import VideoBanner from '@/pages/HomePage/components/VideoBanner.tsx'
+import { groupTranscriptSegments } from '@/utils/transcriptSegments'
+import {
+  findClosestTimeAnchor,
+  parseTimestampSeconds,
+  serializeSegmentsAsSrt,
+} from '@/utils/timeAnchors'
 
 interface VersionNote {
   ver_id: string
@@ -66,6 +86,12 @@ interface MarkdownViewerProps {
   status: 'idle' | 'loading' | 'success' | 'failed'
 }
 
+interface OutlineItem {
+  id: string
+  text: string
+  level: number
+}
+
 const steps = [
   { label: '解析链接', key: 'PARSING' },
   { label: '下载音频', key: 'DOWNLOADING' },
@@ -74,8 +100,34 @@ const steps = [
   { label: '保存完成', key: 'SUCCESS' },
 ]
 
+function getCacheHint(cache?: string) {
+  if (cache === 'transcript') return '已复用同视频字幕缓存，跳过重复转写'
+  if (cache === 'platform_subtitle') return '已使用平台字幕，减少音频转写等待'
+  return ''
+}
+
+function safeDownloadName(name: string | undefined, fallback: string) {
+  const cleaned = (name || '').replace(/[\\/:*?"<>|\r\n\t]/g, '').trim()
+  return cleaned || fallback
+}
+
 const remarkPlugins = [gfm, remarkMath]
 const rehypePlugins = [rehypeKatex, rehypeSlug]
+
+function getMarkdownChildrenText(children: any): string {
+  if (children == null || typeof children === 'boolean') return ''
+  if (typeof children === 'string' || typeof children === 'number') return String(children)
+  if (Array.isArray(children)) return children.map(getMarkdownChildrenText).join('')
+  if (typeof children === 'object' && 'props' in children) {
+    return getMarkdownChildrenText(children.props?.children)
+  }
+  return ''
+}
+
+function getTimePropsFromChildren(children: any) {
+  const seconds = parseTimestampSeconds(getMarkdownChildrenText(children))
+  return seconds == null ? {} : { 'data-vm-time': seconds }
+}
 
 /**
  * 构建 ReactMarkdown components 对象，baseURL 用于修正图片路径。
@@ -85,11 +137,13 @@ const rehypePlugins = [rehypeKatex, rehypeSlug]
 function createMarkdownComponents(
   baseURL: string,
   videoCtx?: { url?: string; platform?: string },
+  onTimeAnchorClick?: (seconds: number) => void
 ) {
   return {
     h1: ({ children, ...props }: any) => (
       <h1
         className="text-primary my-6 scroll-m-20 text-3xl font-extrabold tracking-tight lg:text-4xl"
+        {...getTimePropsFromChildren(children)}
         {...props}
       >
         {children}
@@ -98,6 +152,7 @@ function createMarkdownComponents(
     h2: ({ children, ...props }: any) => (
       <h2
         className="text-primary mt-10 mb-4 scroll-m-20 border-b pb-2 text-2xl font-semibold tracking-tight first:mt-0"
+        {...getTimePropsFromChildren(children)}
         {...props}
       >
         {children}
@@ -106,6 +161,7 @@ function createMarkdownComponents(
     h3: ({ children, ...props }: any) => (
       <h3
         className="text-primary mt-8 mb-4 scroll-m-20 text-xl font-semibold tracking-tight"
+        {...getTimePropsFromChildren(children)}
         {...props}
       >
         {children}
@@ -114,32 +170,40 @@ function createMarkdownComponents(
     h4: ({ children, ...props }: any) => (
       <h4
         className="text-primary mt-6 mb-2 scroll-m-20 text-lg font-semibold tracking-tight"
+        {...getTimePropsFromChildren(children)}
         {...props}
       >
         {children}
       </h4>
     ),
     p: ({ children, ...props }: any) => (
-      <p className="leading-7 [&:not(:first-child)]:mt-6" {...props}>
+      <p
+        className="leading-7 [&:not(:first-child)]:mt-6"
+        {...getTimePropsFromChildren(children)}
+        {...props}
+      >
         {children}
       </p>
     ),
     a: ({ href, children, ...props }: any) => {
       const isOriginLink =
-        typeof children[0] === 'string' &&
-        (children[0] as string).startsWith('原片 @')
+        typeof children[0] === 'string' && (children[0] as string).startsWith('原片 @')
 
       if (isOriginLink) {
         const timeMatch = (children[0] as string).match(/原片 @ (\d{2}:\d{2})/)
         const timeText = timeMatch ? timeMatch[1] : '原片'
+        const seconds = parseTimestampSeconds(timeText)
 
         return (
-          <span className="origin-link my-2 inline-flex">
+          <span className="origin-link my-2 inline-flex" data-vm-time={seconds ?? undefined}>
             <a
               href={href}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-100"
+              onClick={() => {
+                if (seconds != null) onTimeAnchorClick?.(seconds)
+              }}
               {...props}
             >
               <Play className="h-3.5 w-3.5" />
@@ -162,8 +226,7 @@ function createMarkdownComponents(
           // LLM 生成的目录锚点可能和 heading 实际文本不完全一致
           //（例如 heading 带 *Content-[00:00]* 后缀，目录链接里没有）
           if (!target) {
-            const normalize = (s: string) =>
-              s.replace(/[-：:\s*\[\]]/g, '').toLowerCase()
+            const normalize = (s: string) => s.replace(/[-：:\s*\[\]]/g, '').toLowerCase()
             const search = normalize(id)
             const headings = document.querySelectorAll('h1, h2, h3, h4, h5, h6')
             for (const h of headings) {
@@ -203,9 +266,7 @@ function createMarkdownComponents(
           {...props}
         >
           {children}
-          {href?.startsWith('http') && (
-            <ExternalLink className="ml-0.5 inline-block h-3 w-3" />
-          )}
+          {href?.startsWith('http') && <ExternalLink className="ml-0.5 inline-block h-3 w-3" />}
         </a>
       )
     },
@@ -225,14 +286,15 @@ function createMarkdownComponents(
       const tsMatch = alt.match(/原片 @ (\d{1,2}):(\d{2})/)
       let jumpUrl = ''
       let timeText = ''
+      let seconds: number | null = null
       if (tsMatch && videoCtx?.url) {
         timeText = `${tsMatch[1]}:${tsMatch[2]}`
-        const seconds = parseInt(tsMatch[1], 10) * 60 + parseInt(tsMatch[2], 10)
+        seconds = parseInt(tsMatch[1], 10) * 60 + parseInt(tsMatch[2], 10)
         jumpUrl = buildVideoTimestampUrl(videoCtx.url, videoCtx.platform, seconds)
       }
 
       return (
-        <div className="my-8 flex flex-col items-center gap-2">
+        <div className="my-8 flex flex-col items-center gap-2" data-vm-time={seconds ?? undefined}>
           <Zoom>
             <img
               {...props}
@@ -241,7 +303,7 @@ function createMarkdownComponents(
               crossOrigin="anonymous"
               className="max-w-full cursor-zoom-in rounded-lg object-cover shadow-md transition-all hover:shadow-lg"
               style={{ maxHeight: '500px' }}
-              onError={(e) => {
+              onError={e => {
                 // 图片加载失败时直接隐藏，避免破图占位 + alt 文字泄露
                 ;(e.currentTarget as HTMLImageElement).style.display = 'none'
               }}
@@ -254,6 +316,9 @@ function createMarkdownComponents(
               rel="noopener noreferrer"
               title={jumpUrl}
               className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100"
+              onClick={() => {
+                if (seconds != null) onTimeAnchorClick?.(seconds)
+              }}
             >
               <Play className="h-3 w-3" />
               <span>跳转原片（{timeText}）</span>
@@ -267,18 +332,23 @@ function createMarkdownComponents(
         {children}
       </strong>
     ),
-    li: ({ children, ...props }: any) => {
+    li: ({ children, ordered: _ordered, index: _index, node: _node, ...props }: any) => {
       const rawText = String(children)
       const isFakeHeading = /^(\*\*.+\*\*)$/.test(rawText.trim())
 
       if (isFakeHeading) {
         return (
-          <div className="text-primary my-4 text-lg font-bold">{children}</div>
+          <div
+            className="text-primary my-4 text-lg font-bold"
+            {...getTimePropsFromChildren(children)}
+          >
+            {children}
+          </div>
         )
       }
 
       return (
-        <li className="my-1" {...props}>
+        <li className="my-1" {...getTimePropsFromChildren(children)} {...props}>
           {children}
         </li>
       )
@@ -372,9 +442,7 @@ function createMarkdownComponents(
         {children}
       </td>
     ),
-    hr: ({ ...props }: any) => (
-      <hr className="border-muted-foreground/20 my-8" {...props} />
-    ),
+    hr: ({ ...props }: any) => <hr className="border-muted-foreground/20 my-8" {...props} />,
   }
 }
 
@@ -386,10 +454,13 @@ const MarkdownViewer: FC<MarkdownViewerProps> = memo(({ status }) => {
   const [style, setStyle] = useState<string>('')
   const [createTime, setCreateTime] = useState<string>('')
   // 确保baseURL没有尾部斜杠
-  const baseURL = (String(import.meta.env.VITE_API_BASE_URL || '').replace('/api','') || '').replace(/\/$/, '')
+  const baseURL = (
+    String(import.meta.env.VITE_API_BASE_URL || '').replace('/api', '') || ''
+  ).replace(/\/$/, '')
   const getCurrentTask = useTaskStore.getState().getCurrentTask
   const currentTask = useTaskStore(state => state.getCurrentTask())
   const taskStatus = currentTask?.status || 'PENDING'
+  const cacheHint = getCacheHint((currentTask as any)?.cache)
   const retryTask = useTaskStore.getState().retryTask
   const updateTaskContent = useTaskStore(state => state.updateTaskContent)
 
@@ -419,18 +490,100 @@ const MarkdownViewer: FC<MarkdownViewerProps> = memo(({ status }) => {
     }
   }
   const isMultiVersion = Array.isArray(currentTask?.markdown)
-  const [showTranscribe, setShowTranscribe] = useState(false)
   const [showChat, setShowChat] = useState<false | 'half' | 'full'>(false)
   const [viewMode, setViewMode] = useState<'map' | 'preview'>('preview')
   const svgRef = useRef<SVGSVGElement>(null)
+  const noteContentRef = useRef<HTMLDivElement>(null)
+  const [activeTranscriptTime, setActiveTranscriptTime] = useState<number | null>(null)
+  const [outlineOpen, setOutlineOpen] = useState(false)
+  const [outlineItems, setOutlineItems] = useState<OutlineItem[]>([])
+
+  const highlightNoteElement = useCallback((target: Element) => {
+    target.classList.remove('vm-note-time-hit')
+    window.requestAnimationFrame(() => {
+      target.classList.add('vm-note-time-hit')
+      window.setTimeout(() => target.classList.remove('vm-note-time-hit'), 1800)
+    })
+  }, [])
+
+  const scrollNoteToTime = useCallback(
+    (seconds: number) => {
+      setActiveTranscriptTime(seconds)
+      window.setTimeout(() => {
+        const root = noteContentRef.current
+        if (!root) return
+
+        const anchors = Array.from(root.querySelectorAll<HTMLElement>('[data-vm-time]'))
+          .map(element => ({
+            seconds: Number(element.dataset.vmTime),
+            element,
+          }))
+          .filter(anchor => Number.isFinite(anchor.seconds))
+        const anchor = findClosestTimeAnchor(anchors, seconds)
+        if (!anchor) {
+          toast('当前笔记里还没有可定位的时间点', { icon: '⌁' })
+          return
+        }
+
+        anchor.element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        highlightNoteElement(anchor.element)
+      }, 0)
+    },
+    [highlightNoteElement]
+  )
+
+  const handleNoteTimeAnchorClick = useCallback((seconds: number) => {
+    setActiveTranscriptTime(seconds)
+  }, [])
+
+  const refreshOutline = useCallback(() => {
+    const root = noteContentRef.current
+    if (!root) {
+      setOutlineItems([])
+      return
+    }
+
+    const headings = Array.from(root.querySelectorAll<HTMLElement>('h1, h2, h3, h4'))
+      .map((heading, index) => {
+        const text = (heading.textContent || '').trim()
+        if (!text) return null
+        if (!heading.id) heading.id = `vm-heading-${index}`
+        return {
+          id: heading.id,
+          text,
+          level: Number(heading.tagName.slice(1)) || 2,
+        }
+      })
+      .filter(Boolean) as OutlineItem[]
+
+    setOutlineItems(headings)
+  }, [])
+
+  const jumpToOutlineItem = useCallback(
+    (item: OutlineItem) => {
+      const target = noteContentRef.current?.querySelector<HTMLElement>(`#${CSS.escape(item.id)}`)
+      if (!target) return
+      setOutlineOpen(false)
+      window.setTimeout(() => {
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        highlightNoteElement(target)
+      }, 0)
+    },
+    [highlightNoteElement]
+  )
 
   // 缓存 ReactMarkdown components，baseURL / 当前笔记视频信息变化时重建
   const videoUrl = currentTask?.formData?.video_url || ''
   const videoPlatform =
     currentTask?.formData?.platform || (currentTask?.audioMeta as any)?.platform || ''
   const markdownComponents = useMemo(
-    () => createMarkdownComponents(baseURL, { url: videoUrl, platform: videoPlatform }),
-    [baseURL, videoUrl, videoPlatform],
+    () =>
+      createMarkdownComponents(
+        baseURL,
+        { url: videoUrl, platform: videoPlatform },
+        handleNoteTimeAnchorClick
+      ),
+    [baseURL, videoUrl, videoPlatform, handleNoteTimeAnchorClick]
   )
 
   // 多版本内容处理
@@ -464,6 +617,11 @@ const MarkdownViewer: FC<MarkdownViewerProps> = memo(({ status }) => {
       setSelectedContent(currentVer.content)
     }
   }, [currentVerId, currentTask?.id])
+
+  useEffect(() => {
+    const timer = window.setTimeout(refreshOutline, 250)
+    return () => window.clearTimeout(timer)
+  }, [selectedContent, viewMode, refreshOutline])
 
   // 处理「知识检索」来的引用跳转：?highlight=<section_title>&t=<seconds>&q=<chunk text>
   // 等 markdown 渲染完后滚到目标位置并短暂高亮，最后清掉 URL 参数避免回放
@@ -500,7 +658,7 @@ const MarkdownViewer: FC<MarkdownViewerProps> = memo(({ status }) => {
         if (snippet.length >= 6) {
           // 在正文 paragraph / li / blockquote 里逐个匹配
           const nodes = document.querySelectorAll(
-            '.wmde-markdown p, .wmde-markdown li, .wmde-markdown blockquote, .markdown-body p, .markdown-body li, .markdown-body blockquote',
+            '.wmde-markdown p, .wmde-markdown li, .wmde-markdown blockquote, .markdown-body p, .markdown-body li, .markdown-body blockquote'
           )
           for (const n of nodes) {
             const text = normalize(n.textContent || '')
@@ -677,6 +835,28 @@ const MarkdownViewer: FC<MarkdownViewerProps> = memo(({ status }) => {
     }
   }
 
+  const handleExportTranscript = () => {
+    const task = getCurrentTask()
+    const segments = groupTranscriptSegments(task?.transcript?.segments)
+    if (!task || !segments.length) {
+      toast.error('当前任务没有可导出的字幕')
+      return
+    }
+    const blob = new Blob([serializeSegmentsAsSrt(segments)], {
+      type: 'text/plain;charset=utf-8',
+    })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${safeDownloadName(task.audioMeta?.title, task.id)}.srt`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    toast.success('字幕文件已导出')
+  }
+  const showTranscriptPane = !!currentTask && showChat !== 'half'
+
   if (status === 'loading') {
     // 把后端状态映射到新设计的 5 步进度 + GenHero 动画的 stepIndex
     const STEP_DEFS = [
@@ -687,7 +867,10 @@ const MarkdownViewer: FC<MarkdownViewerProps> = memo(({ status }) => {
       { key: 'SUCCESS', zh: '保存完成', icon: <Check size={18} /> },
     ]
     const normalized = taskStatus === 'SAVING' ? 'SUMMARIZING' : taskStatus
-    const idx = Math.max(0, STEP_DEFS.findIndex(s => s.key === normalized))
+    const idx = Math.max(
+      0,
+      STEP_DEFS.findIndex(s => s.key === normalized)
+    )
     return (
       <div className="vm-content-inner narrow vm-fade-up" style={{ paddingTop: 44 }}>
         <div className="vm-card" style={{ overflow: 'hidden' }}>
@@ -706,9 +889,7 @@ const MarkdownViewer: FC<MarkdownViewerProps> = memo(({ status }) => {
                 {isPaused ? '已暂停' : '正在生成笔记'}
               </div>
               <div className="vm-field-hint">
-                {isPaused
-                  ? '点击「继续」恢复后续步骤'
-                  : '可在前三步随时暂停；进入总结后将自动锁定'}
+                {isPaused ? '点击「继续」恢复后续步骤' : '可在前三步随时暂停；进入总结后将自动锁定'}
               </div>
             </div>
           </div>
@@ -758,7 +939,7 @@ const MarkdownViewer: FC<MarkdownViewerProps> = memo(({ status }) => {
             }}
           >
             <div className="vm-field-hint" style={{ maxWidth: 360 }}>
-              {!isPaused && !canPause ? '即将完成 — 总结阶段无法暂停' : ' '}
+              {cacheHint || (!isPaused && !canPause ? '即将完成 — 总结阶段无法暂停' : ' ')}
             </div>
             <div style={{ display: 'flex', gap: 10 }}>
               {isPaused ? (
@@ -821,12 +1002,11 @@ const MarkdownViewer: FC<MarkdownViewerProps> = memo(({ status }) => {
         noteStyles={noteStyles}
         onCopy={handleCopy}
         onExport={handleExport}
+        onExportTranscript={handleExportTranscript}
         onEdit={handleEdit}
         onRepolish={handleOpenRepolish}
         onDeleteVersion={handleDeleteVersion}
         createAt={createTime}
-        showTranscribe={showTranscribe}
-        setShowTranscribe={setShowTranscribe}
         showChat={showChat}
         setShowChat={setShowChat}
         viewMode={viewMode}
@@ -853,76 +1033,115 @@ const MarkdownViewer: FC<MarkdownViewerProps> = memo(({ status }) => {
                   <ChatPanel taskId={currentTask.id} mode="full" onModeChange={setShowChat} />
                 </div>
               ) : (
-              <>
-              {editing ? (
-                <div className="flex min-w-0 flex-1 flex-col">
-                  <div className="flex items-center justify-between border-b bg-neutral-50/50 px-3 py-2">
-                    <span className="text-sm font-medium text-gray-700">编辑笔记 · 保存后会作为新版本追加</span>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 px-3"
-                        onClick={handleEditCancel}
-                        disabled={saving}
-                      >
-                        <X className="mr-1 h-3.5 w-3.5" /> 取消
-                      </Button>
-                      <Button
-                        size="sm"
-                        className="h-8 px-3"
-                        onClick={handleEditSave}
-                        disabled={saving}
-                      >
-                        {saving ? (
-                          <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <Save className="mr-1 h-3.5 w-3.5" />
-                        )}
-                        保存
-                      </Button>
+                <>
+                  {editing ? (
+                    <div className="flex min-w-0 flex-1 flex-col">
+                      <div className="flex items-center justify-between border-b bg-neutral-50/50 px-3 py-2">
+                        <span className="text-sm font-medium text-gray-700">
+                          编辑笔记 · 保存后会作为新版本追加
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 px-3"
+                            onClick={handleEditCancel}
+                            disabled={saving}
+                          >
+                            <X className="mr-1 h-3.5 w-3.5" /> 取消
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="h-8 px-3"
+                            onClick={handleEditSave}
+                            disabled={saving}
+                          >
+                            {saving ? (
+                              <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Save className="mr-1 h-3.5 w-3.5" />
+                            )}
+                            保存
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="flex-1 overflow-hidden" data-color-mode="light">
+                        <MDEditor
+                          value={editorValue}
+                          onChange={v => setEditorValue(v ?? '')}
+                          height="100%"
+                          preview="live"
+                        />
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex-1 overflow-hidden" data-color-mode="light">
-                    <MDEditor
-                      value={editorValue}
-                      onChange={v => setEditorValue(v ?? '')}
-                      height="100%"
-                      preview="live"
-                    />
-                  </div>
-                </div>
-              ) : (
-                <ScrollArea className="min-w-0 flex-1">
-                  <div className="px-2">
-                    <VideoBanner
-                      audioMeta={currentTask?.audioMeta}
-                      videoUrl={currentTask?.formData?.video_url}
-                    />
-                  </div>
-                  <div className={'markdown-body w-full px-2'}>
-                    <ReactMarkdown
-                      remarkPlugins={remarkPlugins}
-                      rehypePlugins={rehypePlugins}
-                      components={markdownComponents}
+                  ) : (
+                    <div
+                      className={`vm-note-result-grid ${showTranscriptPane ? '' : 'without-transcript'}`}
                     >
-                      {selectedContent.replace(/^>\s*来源链接：[^\n]*\n*/m, '')}
-                    </ReactMarkdown>
-                  </div>
-                </ScrollArea>
-              )}
-              {showTranscribe && (
-                <div className={'ml-2 w-2/4'}>
-                  <TranscriptViewer />
-                </div>
-              )}
-              {/* 侧边问答模式：markdown + ChatPanel 各占一半 */}
-              {showChat === 'half' && currentTask && (
-                <div className="ml-2 h-full w-1/2 shrink-0">
-                  <ChatPanel taskId={currentTask.id} mode="half" onModeChange={setShowChat} />
-                </div>
-              )}
-              </>
+                      <ScrollArea className="vm-note-main-scroll min-w-0">
+                        {outlineItems.length > 0 && (
+                          <div className="vm-note-outline-bar">
+                            <div className="relative">
+                              <button
+                                type="button"
+                                className="vm-note-outline-trigger"
+                                onClick={() => setOutlineOpen(open => !open)}
+                              >
+                                <ListTree className="h-4 w-4" />
+                                <span>大纲</span>
+                              </button>
+                              {outlineOpen && (
+                                <div className="vm-note-outline-menu">
+                                  {outlineItems.map(item => (
+                                    <button
+                                      key={item.id}
+                                      type="button"
+                                      className="vm-note-outline-item"
+                                      style={{ paddingLeft: 10 + (item.level - 1) * 12 }}
+                                      title={item.text}
+                                      onClick={() => jumpToOutlineItem(item)}
+                                    >
+                                      {item.text}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                        <div className="px-2">
+                          <VideoBanner
+                            audioMeta={currentTask?.audioMeta}
+                            videoUrl={currentTask?.formData?.video_url}
+                          />
+                        </div>
+                        <div ref={noteContentRef} className={'markdown-body w-full px-2'}>
+                          <ReactMarkdown
+                            remarkPlugins={remarkPlugins}
+                            rehypePlugins={rehypePlugins}
+                            components={markdownComponents}
+                          >
+                            {selectedContent.replace(/^>\s*来源链接：[^\n]*\n*/m, '')}
+                          </ReactMarkdown>
+                        </div>
+                      </ScrollArea>
+                      {showTranscriptPane && (
+                        <aside className="vm-transcript-pane" aria-label="字幕">
+                          <TranscriptViewer
+                            activeTime={activeTranscriptTime}
+                            onSegmentClick={segment => scrollNoteToTime(segment.start)}
+                          />
+                        </aside>
+                      )}
+                    </div>
+                  )}
+                  {/* 侧边问答模式：markdown + ChatPanel 各占一半 */}
+                  {showChat === 'half' && currentTask && (
+                    <div className="ml-2 h-full w-1/2 shrink-0">
+                      <ChatPanel taskId={currentTask.id} mode="half" onModeChange={setShowChat} />
+                    </div>
+                  )}
+                </>
               )}
             </>
           ) : (
@@ -945,7 +1164,8 @@ const MarkdownViewer: FC<MarkdownViewerProps> = memo(({ status }) => {
           <DialogHeader>
             <DialogTitle>AI 重新润色</DialogTitle>
             <DialogDescription>
-              用现有的转录文本 + 当前模型，按新风格 / 额外指令重新生成一版笔记，作为新版本追加；原版本保留。
+              用现有的转录文本 + 当前模型，按新风格 /
+              额外指令重新生成一版笔记，作为新版本追加；原版本保留。
             </DialogDescription>
           </DialogHeader>
 
@@ -966,7 +1186,9 @@ const MarkdownViewer: FC<MarkdownViewerProps> = memo(({ status }) => {
               </UiSelect>
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">额外指令（可选）</label>
+              <label className="mb-1 block text-sm font-medium text-gray-700">
+                额外指令（可选）
+              </label>
               <Textarea
                 value={repolishExtras}
                 onChange={e => setRepolishExtras(e.target.value)}

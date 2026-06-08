@@ -28,7 +28,7 @@ export const useTaskPolling = (interval = 3000) => {
       for (const task of pendingTasks) {
         try {
           const res = await get_task_status(task.id)
-          const { status, paused } = res
+          const { status, paused, cache } = res
 
           if (status === 'SUCCESS' && status !== task.status) {
             const result = res.result || {}
@@ -39,15 +39,19 @@ export const useTaskPolling = (interval = 3000) => {
               audioMeta: result.audio_meta,
               totalTokens: result.total_tokens,
               paused: false,
+              cache,
               completedAt: new Date().toISOString(), // 补记完成时间
             })
             toast.success('笔记生成成功')
           } else if (status === 'FAILED' && status !== task.status) {
             updateTaskContent(task.id, { status, paused: false })
             console.warn(`⚠️ 任务 ${task.id} 失败`)
-          } else if (status && (status !== task.status || !!paused !== !!task.paused)) {
+          } else if (
+            status &&
+            (status !== task.status || !!paused !== !!task.paused || cache !== task.cache)
+          ) {
             // 处理中：状态或暂停标记变化时同步
-            updateTaskContent(task.id, { status, paused: !!paused })
+            updateTaskContent(task.id, { status, paused: !!paused, cache })
           }
         } catch (e) {
           console.error('❌ 任务轮询失败：', e)
