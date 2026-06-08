@@ -1,4 +1,5 @@
 import sys
+import threading
 from pathlib import Path
 
 import pytest
@@ -12,7 +13,9 @@ from app.services.hot_videos import (
     HotVideoItem,
     PlatformHotVideoResult,
     _format_bilibili_views,
+    _fetch_bilibili_hot,
     _map_douyin_hot_items,
+    _map_bilibili_reader_markdown_items,
     _map_bilibili_popular_items,
     _map_youtube_trending_html,
     fetch_hot_video_payload,
@@ -62,6 +65,95 @@ def test_map_bilibili_popular_items_normalizes_expected_fields():
     ]
 
 
+def test_map_bilibili_reader_markdown_items_extracts_popular_page_links():
+    markdown = """
+[![Image 1](https://i1.hdslb.com/bfs/archive/cover.jpg@412w_232h_1c_!web-popular.avif)](https://www.bilibili.com/video/BV1xkE46PE59)
+
+参加了九次高考的考生采访
+
+自来卷三木
+
+275.2万  1847
+"""
+
+    items = _map_bilibili_reader_markdown_items(markdown, limit=3)
+
+    assert items == [
+        HotVideoItem(
+            id="BV1xkE46PE59",
+            platform="bilibili",
+            title="参加了九次高考的考生采访",
+            url="https://www.bilibili.com/video/BV1xkE46PE59",
+            cover_url="https://i1.hdslb.com/bfs/archive/cover.jpg@412w_232h_1c_!web-popular.avif",
+            author="自来卷三木",
+            rank=1,
+            hot_score="275.2万播放",
+            source="bilibili_popular_reader",
+        )
+    ]
+
+
+def test_fetch_bilibili_hot_falls_back_to_reader_when_api_fails(monkeypatch):
+    markdown = """
+[![Image 1](https://i1.hdslb.com/bfs/archive/cover.jpg)](https://www.bilibili.com/video/BV1xkE46PE59)
+
+参加了九次高考的考生采访
+
+自来卷三木
+
+275.2万  1847
+"""
+
+    class FakeResponse:
+        text = markdown
+
+        def raise_for_status(self):
+            return None
+
+    class FakeSession:
+        headers = {}
+
+        def __init__(self):
+            self.calls = []
+
+        def get(self, url, **kwargs):
+            self.calls.append(url)
+            if "api.bilibili.com" in url:
+                raise RuntimeError("tls eof")
+            return FakeResponse()
+
+    session = FakeSession()
+    monkeypatch.setattr(hot_videos, "_session", lambda: session)
+
+    result = _fetch_bilibili_hot(limit=2)
+
+    assert result.status == "ok"
+    assert result.message == "官方热点接口暂不可用，已切换备用热点源"
+    assert result.items[0].source == "bilibili_popular_reader"
+    assert result.items[0].url == "https://www.bilibili.com/video/BV1xkE46PE59"
+    assert any("api.bilibili.com" in call for call in session.calls)
+    assert any("r.jina.ai" in call for call in session.calls)
+
+
+def test_fetch_bilibili_hot_uses_snapshot_when_live_sources_fail(monkeypatch):
+    class FakeSession:
+        headers = {}
+
+        def get(self, url, **kwargs):
+            raise RuntimeError(f"blocked: {url}")
+
+    monkeypatch.setattr(hot_videos, "_session", lambda: FakeSession())
+
+    result = _fetch_bilibili_hot(limit=2)
+
+    assert result.status == "ok"
+    assert result.message == "实时热点源暂不可用，已显示最近热门快照"
+    assert len(result.items) == 2
+    assert {item.platform for item in result.items} == {"bilibili"}
+    assert {item.source for item in result.items} == {"bilibili_popular_snapshot"}
+    assert all(item.url.startswith("https://www.bilibili.com/video/BV") for item in result.items)
+
+
 def test_fetch_all_keeps_successful_platform_when_another_platform_fails(monkeypatch):
     def fake_bilibili(limit):
         return PlatformHotVideoResult(
@@ -101,6 +193,52 @@ def test_fetch_all_keeps_successful_platform_when_another_platform_fails(monkeyp
     assert payload["platforms"][0]["items"][0]["title"] == "可用热门"
     assert payload["platforms"][1]["status"] == "error"
     assert "network blocked" in payload["platforms"][1]["message"]
+
+
+def test_fetch_all_runs_platform_fetchers_concurrently(monkeypatch):
+    lock = threading.Lock()
+    started: list[str] = []
+    both_started = threading.Event()
+
+    def make_fetcher(name: str):
+        def fake_fetcher(limit):
+            with lock:
+                started.append(name)
+                if len(started) == 2:
+                    both_started.set()
+            if not both_started.wait(timeout=1):
+                raise AssertionError("platform fetchers did not overlap")
+            return PlatformHotVideoResult(
+                platform=name,
+                status="ok",
+                message="",
+                items=[
+                    HotVideoItem(
+                        id=f"{name}-1",
+                        platform=name,
+                        title=f"{name} 热点",
+                        url=f"https://example.com/{name}",
+                        rank=1,
+                    )
+                ],
+            )
+
+        return fake_fetcher
+
+    monkeypatch.setattr(
+        hot_videos,
+        "HOT_FETCHERS",
+        {
+            "bilibili": make_fetcher("bilibili"),
+            "youtube": make_fetcher("youtube"),
+        },
+    )
+    hot_videos.clear_hot_video_cache()
+
+    payload = fetch_hot_video_payload(platform="all", limit=1, force=True)
+
+    assert [item["status"] for item in payload["platforms"]] == ["ok", "ok"]
+    assert [item["platform"] for item in payload["platforms"]] == ["bilibili", "youtube"]
 
 
 def test_fetch_hot_videos_rejects_unknown_platform():

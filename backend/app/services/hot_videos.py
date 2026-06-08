@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from time import monotonic
@@ -22,6 +23,96 @@ SUPPORTED_HOT_PLATFORMS: tuple[HotPlatform, ...] = (
 )
 CACHE_TTL_SECONDS = 600
 DEFAULT_TIMEOUT_SECONDS = 6
+BILIBILI_POPULAR_API_URL = "https://api.bilibili.com/x/web-interface/popular"
+BILIBILI_POPULAR_READER_URL = (
+    "https://r.jina.ai/http://r.jina.ai/http://https://www.bilibili.com/v/popular/all"
+)
+BILIBILI_POPULAR_SNAPSHOT: tuple[dict[str, str], ...] = (
+    {
+        "id": "BV1xkE46PE59",
+        "title": "参加了九次高考的考生采访",
+        "cover_url": "https://i1.hdslb.com/bfs/archive/2c51e17d5ab278033691d055015af26638867e5b.jpg@412w_232h_1c_!web-popular.avif",
+        "author": "自来卷三木",
+        "hot_score": "275.2万播放",
+    },
+    {
+        "id": "BV1Z37D6UEYz",
+        "title": "被 偷 家 了 ！",
+        "cover_url": "https://i1.hdslb.com/bfs/archive/127ba31467e867d7c850176898391dd977cf4c52.jpg@412w_232h_1c_!web-popular.avif",
+        "author": "野生鱼白",
+        "hot_score": "116.7万播放",
+    },
+    {
+        "id": "BV1wE7m67EAF",
+        "title": "“我在成华大道「拼接遗憾」”",
+        "cover_url": "https://i1.hdslb.com/bfs/archive/b7a88bfce9322211ddb670d69d549967dba6591e.jpg@412w_232h_1c_!web-popular.avif",
+        "author": "15万点赞 Dieorite",
+        "hot_score": "69.1万播放",
+    },
+    {
+        "id": "BV16kV26TES7",
+        "title": "当父母说出了正确答案：",
+        "cover_url": "https://i0.hdslb.com/bfs/archive/982b25c4ef21fb08f77ae933c89f4b99d5b0c86a.jpg@412w_232h_1c_!web-popular.avif",
+        "author": "百万播放 进击的金厂长",
+        "hot_score": "636.6万播放",
+    },
+    {
+        "id": "BV1QzVR63E3L",
+        "title": "回忆永远都是加分项",
+        "cover_url": "https://i2.hdslb.com/bfs/archive/f4dc3fe8ea88a450877315e867b4995121d5dbf6.jpg@412w_232h_1c_!web-popular.avif",
+        "author": "百万播放 央视新闻",
+        "hot_score": "381万播放",
+    },
+    {
+        "id": "BV1o47S6UEQy",
+        "title": "仅粉丝可见的神颜",
+        "cover_url": "https://i2.hdslb.com/bfs/archive/e6c40e8a1ff00524db7ed3aaf7269a0b772fc266.jpg@412w_232h_1c_!web-popular.avif",
+        "author": "十一的看脸日记",
+        "hot_score": "162.2万播放",
+    },
+    {
+        "id": "BV11wE46hETZ",
+        "title": "没错，针对的就是日本和菲律宾！",
+        "cover_url": "https://i1.hdslb.com/bfs/archive/df29614140c555cf5b6ded8663f3289dc532104a.jpg@412w_232h_1c_!web-popular.avif",
+        "author": "央视军事",
+        "hot_score": "19.6万播放",
+    },
+    {
+        "id": "BV1TJE862ESA",
+        "title": "《女神异闻录４ Revival》预购宣传片",
+        "cover_url": "https://i1.hdslb.com/bfs/archive/7b600cf3f7dc7a7557ee87005d0ee09b76c64bc6.jpg@412w_232h_1c_!web-popular.avif",
+        "author": "2万分享 SEGA世嘉官方",
+        "hot_score": "30.4万播放",
+    },
+    {
+        "id": "BV1AnEx68Eh5",
+        "title": "特厨探店|明星开的小面馆，真实水平到底怎么样—八号院儿",
+        "cover_url": "https://i0.hdslb.com/bfs/archive/ef4fdbb48e2a5d5ea262e50d686a682df48c1727.jpg@412w_232h_1c_!web-popular.avif",
+        "author": "特厨隋坡",
+        "hot_score": "98万播放",
+    },
+    {
+        "id": "BV1kME464EJs",
+        "title": "小小极客湾，拿下！",
+        "cover_url": "https://i2.hdslb.com/bfs/archive/ba90a910e391dc0aab61116cff6707a1253fa15d.jpg@412w_232h_1c_!web-popular.avif",
+        "author": "笔吧评测室",
+        "hot_score": "62万播放",
+    },
+    {
+        "id": "BV1AsEx6oE3t",
+        "title": "给我把桑多涅变回来！",
+        "cover_url": "https://i2.hdslb.com/bfs/archive/511d7c8790049145678aca03eaac77fd4f8826b6.jpg@412w_232h_1c_!web-popular.avif",
+        "author": "白银新手",
+        "hot_score": "10.5万播放",
+    },
+    {
+        "id": "BV1MPEH6REki",
+        "title": "菜月昴老师，我还记得你",
+        "cover_url": "https://i1.hdslb.com/bfs/archive/1f4223d2a450a938cb907407be90e8091333ccc2.jpg@412w_232h_1c_!web-popular.avif",
+        "author": "人气飙升 完勒Linew",
+        "hot_score": "22.5万播放",
+    },
+)
 
 
 @dataclass(frozen=True)
@@ -103,6 +194,63 @@ def _map_bilibili_popular_items(payload: dict[str, Any], limit: int) -> list[Hot
     return items
 
 
+def _map_bilibili_reader_markdown_items(markdown: str, limit: int) -> list[HotVideoItem]:
+    lines = markdown.splitlines()
+    items: list[HotVideoItem] = []
+    seen: set[str] = set()
+    link_pattern = re.compile(
+        r"\[!\[[^\]]+\]\((?P<cover>[^)]*)\)\]\("
+        r"(?P<url>https://www\.bilibili\.com/video/(?P<bvid>BV[0-9A-Za-z]+)[^)]*)\)"
+    )
+    for index, line in enumerate(lines):
+        match = link_pattern.search(line)
+        if not match:
+            continue
+        bvid = match.group("bvid")
+        if bvid in seen:
+            continue
+        details = _next_nonempty_lines(lines, index + 1, count=3)
+        if not details:
+            continue
+        title = details[0]
+        if not title:
+            continue
+        seen.add(bvid)
+        items.append(
+            HotVideoItem(
+                id=bvid,
+                platform="bilibili",
+                title=title,
+                url=f"https://www.bilibili.com/video/{bvid}",
+                cover_url=_normalize_image_url(match.group("cover")),
+                author=details[1] if len(details) > 1 else "",
+                rank=len(items) + 1,
+                hot_score=_format_reader_bilibili_hot_score(details[2] if len(details) > 2 else ""),
+                source="bilibili_popular_reader",
+            )
+        )
+        if len(items) >= limit:
+            break
+    return items
+
+
+def _snapshot_bilibili_hot_items(limit: int) -> list[HotVideoItem]:
+    return [
+        HotVideoItem(
+            id=row["id"],
+            platform="bilibili",
+            title=row["title"],
+            url=f"https://www.bilibili.com/video/{row['id']}",
+            cover_url=row["cover_url"],
+            author=row["author"],
+            rank=index + 1,
+            hot_score=row["hot_score"],
+            source="bilibili_popular_snapshot",
+        )
+        for index, row in enumerate(BILIBILI_POPULAR_SNAPSHOT[:limit])
+    ]
+
+
 _CacheEntry = tuple[float, dict[str, Any]]
 _CACHE: dict[tuple[str, int], _CacheEntry] = {}
 
@@ -127,20 +275,49 @@ def _session() -> requests.Session:
 
 
 def _fetch_bilibili_hot(limit: int) -> PlatformHotVideoResult:
-    response = _session().get(
-        "https://api.bilibili.com/x/web-interface/popular",
-        params={"ps": limit, "pn": 1},
-        timeout=DEFAULT_TIMEOUT_SECONDS,
-    )
-    response.raise_for_status()
-    payload = response.json()
-    if payload.get("code") not in (0, None):
-        raise RuntimeError(str(payload.get("message") or "B 站热点接口返回异常"))
-    items = _map_bilibili_popular_items(payload, limit=limit)
+    primary_error = ""
+    try:
+        response = _session().get(
+            BILIBILI_POPULAR_API_URL,
+            params={"ps": limit, "pn": 1},
+            timeout=DEFAULT_TIMEOUT_SECONDS,
+        )
+        response.raise_for_status()
+        payload = response.json()
+        if payload.get("code") not in (0, None):
+            raise RuntimeError(str(payload.get("message") or "B 站热点接口返回异常"))
+        items = _map_bilibili_popular_items(payload, limit=limit)
+        if items:
+            return PlatformHotVideoResult(
+                platform="bilibili",
+                status="ok",
+                message="",
+                items=items,
+            )
+        primary_error = "B 站热点暂时没有可用视频"
+    except Exception as exc:
+        primary_error = str(exc) or "B 站热点接口返回异常"
+
+    try:
+        response = _session().get(
+            BILIBILI_POPULAR_READER_URL,
+            timeout=DEFAULT_TIMEOUT_SECONDS,
+        )
+        response.raise_for_status()
+        items = _map_bilibili_reader_markdown_items(response.text, limit=limit)
+    except Exception:
+        items = _snapshot_bilibili_hot_items(limit)
+        return PlatformHotVideoResult(
+            platform="bilibili",
+            status="ok" if items else "error",
+            message="实时热点源暂不可用，已显示最近热门快照" if items else primary_error,
+            items=items,
+        )
+
     return PlatformHotVideoResult(
         platform="bilibili",
         status="ok" if items else "error",
-        message="" if items else "B 站热点暂时没有可用视频",
+        message="官方热点接口暂不可用，已切换备用热点源" if items else primary_error,
         items=items,
     )
 
@@ -234,11 +411,23 @@ def _error_result(platform: HotPlatform, exc: Exception) -> PlatformHotVideoResu
 
 def fetch_hot_videos(platform: str = "all", limit: int = 12) -> list[PlatformHotVideoResult]:
     safe_limit = _normalize_limit(limit)
+    platform_names = _platforms_for_filter(platform)
+    results_by_platform: dict[HotPlatform, PlatformHotVideoResult] = {}
+    with ThreadPoolExecutor(max_workers=len(platform_names)) as executor:
+        future_to_platform = {
+            executor.submit(HOT_FETCHERS[name], safe_limit): name for name in platform_names
+        }
+        for future in as_completed(future_to_platform):
+            name = future_to_platform[future]
+            try:
+                results_by_platform[name] = future.result()
+            except Exception as exc:
+                results_by_platform[name] = _error_result(name, exc)
     results: list[PlatformHotVideoResult] = []
-    for name in _platforms_for_filter(platform):
+    for name in platform_names:
         try:
-            results.append(HOT_FETCHERS[name](safe_limit))
-        except Exception as exc:
+            results.append(results_by_platform[name])
+        except KeyError as exc:
             results.append(_error_result(name, exc))
     return results
 
@@ -365,6 +554,28 @@ def _douyin_item_from_node(
         hot_score=f"{hot_value}热度" if hot_value else "",
         source="douyin_hot_search",
     )
+
+
+def _next_nonempty_lines(lines: list[str], start: int, count: int) -> list[str]:
+    values: list[str] = []
+    for line in lines[start:]:
+        text = line.strip()
+        if not text:
+            continue
+        values.append(text)
+        if len(values) >= count:
+            break
+    return values
+
+
+def _format_reader_bilibili_hot_score(text: str) -> str:
+    parts = [part for part in re.split(r"\s+", text.strip()) if part]
+    if not parts:
+        return ""
+    first = parts[0]
+    if "播放" in first or not re.search(r"\d", first):
+        return first
+    return f"{first}播放"
 
 
 def _first_text(value: Any) -> str:
