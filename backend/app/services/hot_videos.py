@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import re
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from time import monotonic
@@ -267,8 +269,168 @@ def fetch_hot_video_payload(
 
 
 def _map_youtube_trending_html(html: str, limit: int) -> list[HotVideoItem]:
-    return []
+    raw_json = _extract_balanced_json(html, "ytInitialData")
+    if not raw_json:
+        return []
+    try:
+        payload = json.loads(raw_json)
+    except json.JSONDecodeError:
+        return []
+
+    items: list[HotVideoItem] = []
+    seen: set[str] = set()
+    for node in _walk_dicts(payload):
+        renderer = node.get("videoRenderer")
+        if not isinstance(renderer, dict):
+            continue
+        video_id = str(renderer.get("videoId") or "").strip()
+        title = _first_text(renderer.get("title"))
+        if not video_id or not title or video_id in seen:
+            continue
+        seen.add(video_id)
+        thumbnails = ((renderer.get("thumbnail") or {}).get("thumbnails") or [])
+        cover_url = ""
+        if thumbnails and isinstance(thumbnails[-1], dict):
+            cover_url = str(thumbnails[-1].get("url") or "")
+        items.append(
+            HotVideoItem(
+                id=video_id,
+                platform="youtube",
+                title=title,
+                url=f"https://www.youtube.com/watch?v={video_id}",
+                cover_url=cover_url,
+                author=_first_text(renderer.get("ownerText")),
+                rank=len(items) + 1,
+                hot_score=_first_text(renderer.get("shortViewCountText")),
+                source="youtube_trending",
+            )
+        )
+        if len(items) >= limit:
+            break
+    return items
 
 
 def _map_douyin_hot_items(payload: dict[str, Any], limit: int) -> list[HotVideoItem]:
-    return []
+    items: list[HotVideoItem] = []
+    seen: set[str] = set()
+    for node in _walk_dicts(payload):
+        aweme_infos = node.get("aweme_infos")
+        if isinstance(aweme_infos, list):
+            for aweme in aweme_infos:
+                if not isinstance(aweme, dict):
+                    continue
+                item = _douyin_item_from_node(
+                    aweme,
+                    rank=len(items) + 1,
+                    parent_hot_value=node.get("hot_value"),
+                )
+                if item and item.id not in seen:
+                    seen.add(item.id)
+                    items.append(item)
+                if len(items) >= limit:
+                    return items
+
+    for node in _walk_dicts(payload):
+        item = _douyin_item_from_node(node, rank=len(items) + 1)
+        if item and item.id not in seen:
+            seen.add(item.id)
+            items.append(item)
+        if len(items) >= limit:
+            break
+    return items
+
+
+def _douyin_item_from_node(
+    node: dict[str, Any],
+    rank: int,
+    parent_hot_value: Any = None,
+) -> HotVideoItem | None:
+    aweme_id = str(node.get("aweme_id") or node.get("group_id") or "").strip()
+    if not re.fullmatch(r"\d{10,}", aweme_id or ""):
+        return None
+    title = str(node.get("desc") or node.get("title") or node.get("word") or "").strip()
+    if not title:
+        return None
+    author = node.get("author") if isinstance(node.get("author"), dict) else {}
+    video = node.get("video") if isinstance(node.get("video"), dict) else {}
+    hot_value = parent_hot_value or node.get("hot_value") or node.get("view_count") or ""
+    return HotVideoItem(
+        id=aweme_id,
+        platform="douyin",
+        title=title,
+        url=f"https://www.douyin.com/video/{aweme_id}",
+        cover_url=_pick_cover_from_node(video),
+        author=str(author.get("nickname") or "").strip(),
+        rank=rank,
+        hot_score=f"{hot_value}热度" if hot_value else "",
+        source="douyin_hot_search",
+    )
+
+
+def _first_text(value: Any) -> str:
+    if isinstance(value, str):
+        return value.strip()
+    if isinstance(value, dict):
+        if isinstance(value.get("simpleText"), str):
+            return value["simpleText"].strip()
+        runs = value.get("runs")
+        if isinstance(runs, list):
+            return "".join(
+                str(run.get("text") or "") for run in runs if isinstance(run, dict)
+            ).strip()
+    return ""
+
+
+def _walk_dicts(value: Any):
+    if isinstance(value, dict):
+        yield value
+        for child in value.values():
+            yield from _walk_dicts(child)
+    elif isinstance(value, list):
+        for child in value:
+            yield from _walk_dicts(child)
+
+
+def _extract_balanced_json(text: str, marker: str) -> str:
+    start = text.find(marker)
+    if start < 0:
+        return ""
+    brace = text.find("{", start)
+    if brace < 0:
+        return ""
+    depth = 0
+    in_string = False
+    escaped = False
+    for index in range(brace, len(text)):
+        char = text[index]
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            continue
+        if char == '"':
+            in_string = True
+        elif char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                return text[brace : index + 1]
+    return ""
+
+
+def _pick_cover_from_node(node: dict[str, Any]) -> str:
+    candidates = [
+        node.get("cover"),
+        node.get("origin_cover"),
+        node.get("dynamic_cover"),
+    ]
+    for candidate in candidates:
+        if isinstance(candidate, dict):
+            urls = candidate.get("url_list") or []
+            if urls:
+                return str(urls[0])
+    return ""
