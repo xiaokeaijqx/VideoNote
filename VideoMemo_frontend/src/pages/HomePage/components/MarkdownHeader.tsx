@@ -1,13 +1,26 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Copy, Download, BrainCircuit, MessageSquare, FileText, FileType2, FileCode2, ChevronDown, Pencil, Sparkles, Trash2 } from 'lucide-react'
+import {
+  Copy,
+  Download,
+  BrainCircuit,
+  MessageSquare,
+  FileText,
+  FileType2,
+  FileCode2,
+  Captions,
+  ChevronDown,
+  Pencil,
+  Sparkles,
+  Trash2,
+} from 'lucide-react'
 import toast from 'react-hot-toast'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Badge } from '@/components/ui/badge'
-import { exportNote, type ExportFormat } from '@/services/note'
+import { type ExportFormat } from '@/services/note'
 
 interface VersionNote {
   ver_id: string
@@ -20,7 +33,7 @@ interface VersionNote {
 interface NoteHeaderProps {
   currentTask?: {
     markdown: VersionNote[] | string
-  }
+  } | null
   isMultiVersion: boolean
   currentVerId: string
   setCurrentVerId: (id: string) => void
@@ -29,8 +42,10 @@ interface NoteHeaderProps {
   noteStyles: { value: string; label: string }[]
   onCopy: () => void
   onExport: (format: ExportFormat) => void
+  onExportTranscript?: () => void
   createAt?: string | Date
-  setShowTranscribe: (show: boolean) => void
+  viewMode: 'map' | 'preview'
+  setViewMode: (mode: 'map' | 'preview') => void
   showChat?: false | 'half' | 'full'
   setShowChat?: (mode: false | 'half' | 'full') => void
   /** Phase 3: 多版本编辑/润色 */
@@ -46,7 +61,7 @@ const VERSION_SOURCE_LABEL: Record<string, string> = {
 }
 
 interface ExportOption {
-  key: ExportFormat | 'notion'
+  key: ExportFormat | 'srt' | 'notion'
   label: string
   desc: string
   icon: JSX.Element
@@ -55,11 +70,39 @@ interface ExportOption {
 }
 
 const EXPORT_OPTIONS: ExportOption[] = [
-  { key: 'markdown', label: 'Markdown', desc: '原始 .md 文件，零网络', icon: <FileText className="h-4 w-4" /> },
+  {
+    key: 'markdown',
+    label: 'Markdown',
+    desc: '原始 .md 文件，零网络',
+    icon: <FileText className="h-4 w-4" />,
+  },
   { key: 'pdf', label: 'PDF', desc: '排版好的可打印文档', icon: <FileType2 className="h-4 w-4" /> },
-  { key: 'word', label: 'Word', desc: '可继续编辑的 .docx', icon: <FileType2 className="h-4 w-4" /> },
-  { key: 'html', label: 'HTML', desc: '可直接在浏览器打开', icon: <FileCode2 className="h-4 w-4" /> },
-  { key: 'notion', label: 'Notion', desc: '即将上线', icon: <FileText className="h-4 w-4" />, disabled: true, badge: 'Soon' },
+  {
+    key: 'word',
+    label: 'Word',
+    desc: '可继续编辑的 .docx',
+    icon: <FileType2 className="h-4 w-4" />,
+  },
+  {
+    key: 'html',
+    label: 'HTML',
+    desc: '可直接在浏览器打开',
+    icon: <FileCode2 className="h-4 w-4" />,
+  },
+  {
+    key: 'srt',
+    label: '字幕 SRT',
+    desc: '带时间轴的字幕文件',
+    icon: <Captions className="h-4 w-4" />,
+  },
+  {
+    key: 'notion',
+    label: 'Notion',
+    desc: '即将上线',
+    icon: <FileText className="h-4 w-4" />,
+    disabled: true,
+    badge: 'Soon',
+  },
 ]
 
 export function MarkdownHeader({
@@ -72,9 +115,8 @@ export function MarkdownHeader({
   noteStyles,
   onCopy,
   onExport,
+  onExportTranscript,
   createAt,
-  showTranscribe,
-  setShowTranscribe,
   showChat,
   setShowChat,
   viewMode,
@@ -113,6 +155,10 @@ export function MarkdownHeader({
       return
     }
     setExportOpen(false)
+    if (opt.key === 'srt') {
+      onExportTranscript?.()
+      return
+    }
     onExport(opt.key as ExportFormat)
   }
 
@@ -153,7 +199,7 @@ export function MarkdownHeader({
                 <div className="flex items-center gap-1.5 truncate">
                   {(() => {
                     const v = (currentTask?.markdown as VersionNote[] | undefined)?.find(
-                      x => x.ver_id === currentVerId,
+                      x => x.ver_id === currentVerId
                     )
                     const label = v?.source ? VERSION_SOURCE_LABEL[v.source] || v.source : '版本'
                     return `${label} · ${currentVerId.slice(-6)}`
@@ -183,23 +229,25 @@ export function MarkdownHeader({
                 })}
               </SelectContent>
             </Select>
-            {onDeleteVersion && currentVerId && (currentTask?.markdown as VersionNote[])?.length > 1 && (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      onClick={() => onDeleteVersion(currentVerId)}
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 px-2 text-neutral-400 hover:text-red-500"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>删除当前版本</TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            )}
+            {onDeleteVersion &&
+              currentVerId &&
+              (currentTask?.markdown as VersionNote[])?.length > 1 && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        onClick={() => onDeleteVersion(currentVerId)}
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-2 text-neutral-400 hover:text-red-500"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>删除当前版本</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
           </>
         )}
 
@@ -314,24 +362,6 @@ export function MarkdownHeader({
             </div>
           )}
         </div>
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                onClick={() => {
-                  setShowTranscribe(!showTranscribe)
-                }}
-                variant="ghost"
-                size="sm"
-                className="h-8 px-2"
-              >
-                {/*<Download className="mr-1.5 h-4 w-4" />*/}
-                <span className="text-sm">原文参照</span>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>原文参照</TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
         {setShowChat && (
           <TooltipProvider>
             <Tooltip>

@@ -519,6 +519,7 @@ def get_task_status(task_id: str):
         status = status_content.get("status")
         message = status_content.get("message", "")
         paused = bool(status_content.get("paused", False))
+        cache = status_content.get("cache")
 
         if status == TaskStatus.SUCCESS.value:
             # 成功状态的话，继续读取最终笔记内容
@@ -529,6 +530,7 @@ def get_task_status(task_id: str):
                     "status": status,
                     "result": result_content,
                     "message": message,
+                    "cache": cache,
                     "task_id": task_id
                 })
             else:
@@ -536,6 +538,7 @@ def get_task_status(task_id: str):
                 return R.success({
                     "status": TaskStatus.PENDING.value,
                     "message": "任务完成，但结果文件未找到",
+                    "cache": cache,
                     "task_id": task_id
                 })
 
@@ -547,6 +550,7 @@ def get_task_status(task_id: str):
             "status": status,
             "message": message,
             "paused": paused,
+            "cache": cache,
             "task_id": task_id
         })
 

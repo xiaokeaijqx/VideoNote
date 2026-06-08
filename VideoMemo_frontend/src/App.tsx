@@ -22,6 +22,7 @@ const Knowledge = lazy(() => import('@/pages/Knowledge'))
 const TaskList = lazy(() => import('@/pages/TaskList'))
 const BatchImport = lazy(() => import('@/pages/BatchImport'))
 const HotVideos = lazy(() => import('@/pages/HotVideos'))
+const Articles = lazy(() => import('@/pages/Articles'))
 const Guide = lazy(() => import('@/pages/Guide'))
 
 // 桌面端首启引导守卫：未完成 onboarding 时强制跳到 /onboarding
@@ -29,7 +30,8 @@ function OnboardingGuard({ children }: { children: React.ReactNode }) {
   const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
   // 仅在 Tauri 桌面端拦截；纯 web 端不打扰用户
   if (!isTauri) return <>{children}</>
-  if (localStorage.getItem('videomemo-onboarded') !== '1') return <Navigate to="/onboarding" replace />
+  if (localStorage.getItem('videomemo-onboarded') !== '1')
+    return <Navigate to="/onboarding" replace />
   return <>{children}</>
 }
 const Model = lazy(() => import('@/pages/SettingPage/Model.tsx'))
@@ -39,6 +41,7 @@ const Monitor = lazy(() => import('@/pages/SettingPage/Monitor.tsx'))
 const Downloader = lazy(() => import('@/pages/SettingPage/Downloader.tsx'))
 const DownloaderForm = lazy(() => import('@/components/Form/DownloaderForm/Form.tsx'))
 const TranscriberPage = lazy(() => import('@/pages/SettingPage/transcriber.tsx'))
+const AccessPassword = lazy(() => import('@/pages/SettingPage/AccessPassword.tsx'))
 const NotFoundPage = lazy(() => import('@/pages/NotFoundPage'))
 
 function App() {
@@ -61,12 +64,7 @@ function App() {
     return (
       <>
         <StartupBanner />
-        <BackendInitDialog
-          open={loading}
-          failed={failed}
-          lastError={lastError}
-          onRetry={retry}
-        />
+        <BackendInitDialog open={loading} failed={failed} lastError={lastError} onRetry={retry} />
       </>
     )
   }
@@ -81,10 +79,19 @@ function App() {
       <StartupBanner />
       <BackendHealthIndicator />
       <Router>
-        <Suspense fallback={<div className="flex h-screen items-center justify-center">加载中…</div>}>
+        <Suspense
+          fallback={<div className="flex h-screen items-center justify-center">加载中…</div>}
+        >
           <Routes>
             <Route path="/onboarding" element={<Onboarding />} />
-            <Route path="/" element={<OnboardingGuard><Index /></OnboardingGuard>}>
+            <Route
+              path="/"
+              element={
+                <OnboardingGuard>
+                  <Index />
+                </OnboardingGuard>
+              }
+            >
               <Route element={<MainLayout />}>
                 <Route index element={<HomePage />} />
                 <Route path="collections" element={<Collections />} />
@@ -92,6 +99,7 @@ function App() {
                 <Route path="knowledge" element={<Knowledge />} />
                 <Route path="tasks" element={<TaskList />} />
                 <Route path="hot-videos" element={<HotVideos />} />
+                <Route path="articles" element={<Articles />} />
                 <Route path="batch-import" element={<BatchImport />} />
                 <Route path="guide" element={<Guide />} />
                 <Route path="settings" element={<SettingPage />}>
@@ -104,6 +112,7 @@ function App() {
                     <Route path=":id" element={<DownloaderForm />} />
                   </Route>
                   <Route path="transcriber" element={<TranscriberPage />} />
+                  <Route path="access-password" element={<AccessPassword />} />
                   <Route path="monitor" element={<Monitor />}></Route>
                   <Route path="about" element={<AboutPage />}></Route>
                   <Route path="*" element={<NotFoundPage />} />

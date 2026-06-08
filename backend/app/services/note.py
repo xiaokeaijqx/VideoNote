@@ -218,6 +218,8 @@ class NoteGenerator:
             audio_cache_file = NOTE_OUTPUT_DIR / f"{task_id}_audio.json"
             transcript_cache_file = NOTE_OUTPUT_DIR / f"{task_id}_transcript.json"
             markdown_cache_file = NOTE_OUTPUT_DIR / f"{task_id}_markdown.md"
+            video_transcript_cache_file = None
+
             # 1. 获取字幕/转写：优先缓存 → 平台字幕 → 音频转写
             transcript = None
 
@@ -284,6 +286,14 @@ class NoteGenerator:
                 if local_cover:
                     audio_meta.cover_url = local_cover
 
+            video_transcript_cache_file = self._video_transcript_cache_path(platform, audio_meta.video_id)
+            if transcript is not None:
+                self._write_transcript_cache(
+                    transcript=transcript,
+                    target=video_transcript_cache_file,
+                    log_label="视频级平台字幕缓存",
+                )
+
             # 暂停门（步骤2→3）：下载完成后、转写前可暂停
             self._gate(task_id, TaskStatus.DOWNLOADING)
 
@@ -297,12 +307,12 @@ class NoteGenerator:
                     status_phase=TaskStatus.TRANSCRIBING,
                     task_id=task_id,
                     # 视频级缓存：同一视频重复生成笔记时复用音频转写结果
-                    video_cache_file=self._video_transcript_cache_path(platform, audio_meta.video_id),
+                    video_cache_file=video_transcript_cache_file,
                 )
             else:
                 # 字幕路径：已直接拿到转写文本，无需音频转写。仍显式标记「转写文字」步骤，
                 # 否则进度会从「下载」直接跳到「总结」，看起来第3、4步一起完成。
-                self._update_status(task_id, TaskStatus.TRANSCRIBING)
+                self._update_status(task_id, TaskStatus.TRANSCRIBING, cache="platform_subtitle")
 
             # 暂停门（步骤3→4）：转写完成后、总结前可暂停。
             # 注意：进入总结(第4步)后到第5步之间不再设暂停门——前端会禁用暂停按钮。
@@ -477,7 +487,14 @@ class NoteGenerator:
         if paused_written:
             self._update_status(task_id, current_status, paused=False)
 
-    def _update_status(self, task_id: Optional[str], status: Union[str, TaskStatus], message: Optional[str] = None, paused: bool = False):
+    def _update_status(
+        self,
+        task_id: Optional[str],
+        status: Union[str, TaskStatus],
+        message: Optional[str] = None,
+        paused: bool = False,
+        cache: Optional[str] = None,
+    ):
         """
         创建或更新 {task_id}.status.json，记录当前任务状态
 
@@ -485,16 +502,19 @@ class NoteGenerator:
         :param status: TaskStatus 枚举或自定义状态字符串
         :param message: 可选消息，用于记录失败原因等
         :param paused: 是否处于暂停态（保留当前步骤，仅标记暂停）
+        :param cache: 可选缓存命中标记，如 transcript/platform_subtitle
         """
         if not task_id:
             return
 
         NOTE_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
         status_file = NOTE_OUTPUT_DIR / f"{task_id}.status.json"
-        print(f"写入状态文件: {status_file} 当前状态: {status} paused={paused}")
+        print(f"写入状态文件: {status_file} 当前状态: {status} paused={paused} cache={cache}")
         data = {"status": status.value if isinstance(status, TaskStatus) else status, "paused": paused}
         if message:
             data["message"] = message
+        if cache:
+            data["cache"] = cache
 
         try:
             # First create a temporary file
@@ -659,6 +679,24 @@ class NoteGenerator:
         cache_dir.mkdir(parents=True, exist_ok=True)
         return cache_dir / f"{safe_key}.json"
 
+    def _write_transcript_cache(
+        self,
+        transcript: Optional[TranscriptResult],
+        target: Optional[Path],
+        log_label: str,
+    ) -> None:
+        """把有效转写结果写入缓存。缓存失败不影响主流程。"""
+        if not transcript or not target:
+            return
+        if not (transcript.segments or (transcript.full_text or "").strip()):
+            return
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(json.dumps(asdict(transcript), ensure_ascii=False, indent=2), encoding="utf-8")
+            logger.info(f"{log_label}写入成功 ({target})")
+        except Exception as e:
+            logger.warning(f"{log_label}写入失败（忽略）：{e}")
+
     def _get_transcript(
         self,
         downloader: Downloader,
@@ -700,10 +738,10 @@ class NoteGenerator:
             if transcript and transcript.segments:
                 logger.info(f"成功获取平台字幕，共 {len(transcript.segments)} 段")
                 # 缓存结果
-                transcript_cache_file.write_text(
-                    json.dumps(asdict(transcript), ensure_ascii=False, indent=2),
-                    encoding="utf-8"
-                )
+                payload = json.dumps(asdict(transcript), ensure_ascii=False, indent=2)
+                transcript_cache_file.write_text(payload, encoding="utf-8")
+                if video_cache_file:
+                    self._write_transcript_cache(transcript, video_cache_file, "视频级平台字幕缓存")
                 return transcript
             else:
                 logger.info("平台无可用字幕，将使用音频转写")
@@ -763,6 +801,7 @@ class NoteGenerator:
                 )
                 # 回写本任务的缓存文件，repolish 等按 task_id 读取的流程不受影响
                 transcript_cache_file.write_text(raw_text, encoding="utf-8")
+                self._update_status(task_id, status_phase, cache="transcript")
                 return transcript
             except Exception as e:
                 logger.warning(f"加载视频级转写缓存失败，将重新转写：{e}")
@@ -780,11 +819,7 @@ class NoteGenerator:
                 )
             payload = json.dumps(asdict(transcript), ensure_ascii=False, indent=2)
             transcript_cache_file.write_text(payload, encoding="utf-8")
-            if video_cache_file:
-                try:
-                    video_cache_file.write_text(payload, encoding="utf-8")
-                except Exception as e:
-                    logger.warning(f"写入视频级转写缓存失败（忽略）：{e}")
+            self._write_transcript_cache(transcript, video_cache_file, "视频级转写缓存")
             logger.info(f"转写并缓存成功 ({transcript_cache_file})")
             return transcript
         except Exception as exc:

@@ -5,7 +5,6 @@ import { v4 as uuidv4 } from 'uuid'
 import toast from 'react-hot-toast'
 import { get, set, del } from 'idb-keyval'
 
-
 export type TaskStatus = 'PENDING' | 'RUNNING' | 'SUCCESS' | 'FAILD'
 
 export interface AudioMeta {
@@ -40,12 +39,13 @@ export interface Markdown {
 
 export interface Task {
   id: string
-  markdown: string|Markdown [] //为了兼容之前的笔记
+  markdown: string | Markdown[] //为了兼容之前的笔记
   transcript: Transcript
   status: TaskStatus
   audioMeta: AudioMeta
   totalTokens?: number
   paused?: boolean
+  cache?: string
   createdAt: string
   completedAt?: string // 任务变为 SUCCESS 的时间（由轮询补记）
   formData: {
@@ -78,7 +78,6 @@ export const useTaskStore = create<TaskStore>()(
       currentTaskId: null,
 
       addPendingTask: (taskId: string, platform: string, formData: any) =>
-
         set(state => ({
           tasks: [
             {
@@ -110,65 +109,65 @@ export const useTaskStore = create<TaskStore>()(
         })),
 
       updateTaskContent: (id, data) =>
-          set(state => ({
-            tasks: state.tasks.map(task => {
-              if (task.id !== id) return task
+        set(state => ({
+          tasks: state.tasks.map(task => {
+            if (task.id !== id) return task
 
-              if (task.status === 'SUCCESS' && data.status === 'SUCCESS') return task
+            if (task.status === 'SUCCESS' && data.status === 'SUCCESS') return task
 
-              // 如果是 markdown 字符串，封装为版本
-              if (typeof data.markdown === 'string') {
-                const prev = task.markdown
-                const newVersion: Markdown = {
-                  ver_id: `${task.id}-${uuidv4()}`,
-                  content: data.markdown,
-                  style: task.formData?.style || '',
-                  model_name: task.formData?.model_name || '',
-                  created_at: new Date().toISOString(),
-                }
+            // 如果是 markdown 字符串，封装为版本
+            if (typeof data.markdown === 'string') {
+              const prev = task.markdown
+              const newVersion: Markdown = {
+                ver_id: `${task.id}-${uuidv4()}`,
+                content: data.markdown,
+                style: task.formData?.style || '',
+                model_name: task.formData?.model_name || '',
+                created_at: new Date().toISOString(),
+              }
 
-                let updatedMarkdown: Markdown[]
-                if (Array.isArray(prev)) {
-                  updatedMarkdown = [newVersion, ...prev]
-                } else {
-                  updatedMarkdown = [
-                    newVersion,
-                    ...(typeof prev === 'string' && prev
-                        ? [{
+              let updatedMarkdown: Markdown[]
+              if (Array.isArray(prev)) {
+                updatedMarkdown = [newVersion, ...prev]
+              } else {
+                updatedMarkdown = [
+                  newVersion,
+                  ...(typeof prev === 'string' && prev
+                    ? [
+                        {
                           ver_id: `${task.id}-${uuidv4()}`,
                           content: prev,
                           style: task.formData?.style || '',
                           model_name: task.formData?.model_name || '',
                           created_at: new Date().toISOString(),
-                        }]
-                        : []),
-                  ]
-                }
-
-                return {
-                  ...task,
-                  ...data,
-                  markdown: updatedMarkdown,
-                }
+                        },
+                      ]
+                    : []),
+                ]
               }
 
-              return { ...task, ...data }
-            }),
-          })),
+              return {
+                ...task,
+                ...data,
+                markdown: updatedMarkdown,
+              }
+            }
 
+            return { ...task, ...data }
+          }),
+        })),
 
       getCurrentTask: () => {
         const currentTaskId = get().currentTaskId
         return get().tasks.find(task => task.id === currentTaskId) || null
       },
       retryTask: async (id: string, payload?: any) => {
-
-        if (!id){
+        if (!id) {
           toast.error('任务不存在')
           return
         }
         const task = get().tasks.find(task => task.id === id)
-        console.log('retry',task)
+        console.log('retry', task)
         if (!task) return
 
         const newFormData = payload || task.formData
@@ -184,7 +183,7 @@ export const useTaskStore = create<TaskStore>()(
             toast.error(
               e?.data?.downloading
                 ? '转写模型正在下载中，请稍候再重试'
-                : '转写模型尚未下载，请先去「设置 → 音频转写配置」页下载',
+                : '转写模型尚未下载，请先去「设置 → 音频转写配置」页下载'
             )
             return
           }
@@ -194,17 +193,16 @@ export const useTaskStore = create<TaskStore>()(
 
         set(state => ({
           tasks: state.tasks.map(t =>
-              t.id === id
-                  ? {
-                    ...t,
-                    formData: newFormData, // ✅ 显式更新 formData
-                    status: 'PENDING',
-                  }
-                  : t
+            t.id === id
+              ? {
+                  ...t,
+                  formData: newFormData, // ✅ 显式更新 formData
+                  status: 'PENDING',
+                }
+              : t
           ),
         }))
       },
-
 
       removeTask: async id => {
         const task = get().tasks.find(t => t.id === id)

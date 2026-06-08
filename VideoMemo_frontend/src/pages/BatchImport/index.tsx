@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   Bot,
   CheckCircle2,
+  Clock,
   FileStack,
   Image as ImageIcon,
   Link as LinkIcon,
@@ -38,6 +39,8 @@ const FORMAT_ICONS: Record<string, JSX.Element> = {
   summary: <Sparkles size={14} />,
 }
 
+const DEFAULT_FORMATS = ['toc', 'screenshot', 'summary']
+
 const BatchImport: FC = () => {
   const navigate = useNavigate()
   const lang = useVmLang()
@@ -48,7 +51,7 @@ const BatchImport: FC = () => {
   const [modelName, setModelName] = useState('')
   const [style, setStyle] = useState('minimal')
   const [quality, setQuality] = useState('medium')
-  const [formats, setFormats] = useState<string[]>(['toc', 'summary'])
+  const [formats, setFormats] = useState<string[]>(DEFAULT_FORMATS)
   const [vision, setVision] = useState(false)
   const [intervalSec, setIntervalSec] = useState(6)
   const [cols, setCols] = useState(2)
@@ -68,8 +71,8 @@ const BatchImport: FC = () => {
         text
           .split('\n')
           .map(s => s.trim())
-          .filter(Boolean),
-      ),
+          .filter(Boolean)
+      )
     )
     const valid: { url: string; platform: string }[] = []
     const invalid: string[] = []
@@ -83,6 +86,7 @@ const BatchImport: FC = () => {
 
   const toggleFmt = (v: string) =>
     setFormats(f => (f.includes(v) ? f.filter(x => x !== v) : [...f, v]))
+  const screenshotEnabled = formats.includes('screenshot')
 
   const handleSubmit = async () => {
     if (submitting) return
@@ -121,7 +125,9 @@ const BatchImport: FC = () => {
         grid_size: [cols, rows],
       }
       try {
-        const data: any = await request.post('/generate_note', payload, { suppressToast: true } as any)
+        const data: any = await request.post('/generate_note', payload, {
+          suppressToast: true,
+        } as any)
         addPendingTask(data.task_id, platform, payload)
         ok++
       } catch (e) {
@@ -135,7 +141,7 @@ const BatchImport: FC = () => {
       toast.success(
         lang === 'zh'
           ? `已提交 ${ok} 个任务${fail ? `，${fail} 个失败` : ''}`
-          : `Submitted ${ok}${fail ? ` (${fail} failed)` : ''}`,
+          : `Submitted ${ok}${fail ? ` (${fail} failed)` : ''}`
       )
       setText('')
       navigate('/tasks')
@@ -166,12 +172,19 @@ const BatchImport: FC = () => {
               </div>
               {parsed.total > 0 && (
                 <div className="vm-row" style={{ gap: 10, fontSize: 12.5, fontWeight: 700 }}>
-                  <span style={{ color: 'var(--vm-ok)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span
+                    style={{ color: 'var(--vm-ok)', display: 'flex', alignItems: 'center', gap: 4 }}
+                  >
                     <CheckCircle2 size={14} /> {parsed.valid.length} {trVm('valid', lang)}
                   </span>
                   {parsed.invalid.length > 0 && (
                     <span
-                      style={{ color: 'var(--vm-danger)', display: 'flex', alignItems: 'center', gap: 4 }}
+                      style={{
+                        color: 'var(--vm-danger)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 4,
+                      }}
                     >
                       <XCircle size={14} /> {parsed.invalid.length} {trVm('invalid', lang)}
                     </span>
@@ -236,9 +249,7 @@ const BatchImport: FC = () => {
               <span className="vm-badge vm-badge-neutral">{parsed.valid.length}</span>
             </div>
             {parsed.valid.length === 0 ? (
-              <div
-                style={{ padding: '46px 20px', textAlign: 'center', color: 'var(--vm-faint)' }}
-              >
+              <div style={{ padding: '46px 20px', textAlign: 'center', color: 'var(--vm-faint)' }}>
                 <div style={{ display: 'grid', placeItems: 'center', marginBottom: 10 }}>
                   <FileStack size={30} />
                 </div>
@@ -343,6 +354,16 @@ const BatchImport: FC = () => {
                 )
               })}
             </div>
+            {screenshotEnabled && (
+              <div className="vm-screenshot-note vm-fade-up">
+                <div className="vm-row" style={{ gap: 8, alignItems: 'center' }}>
+                  <Clock size={14} />
+                  <span className="vm-field-label">{trVm('screenshotImpactTitle', lang)}</span>
+                </div>
+                <div className="vm-field-hint">{trVm('screenshotBatchHint', lang)}</div>
+                <div className="vm-field-hint">{trVm('screenshotLongHint', lang)}</div>
+              </div>
+            )}
           </Field>
 
           <Field label={trVm('videoUnd', lang)}>

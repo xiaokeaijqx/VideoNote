@@ -15,6 +15,8 @@ import {
   Plus,
   Palette,
   Flame,
+  KeyRound,
+  Newspaper,
 } from 'lucide-react'
 import { BrandMark } from '@/components/design/BrandMark'
 import { trVm, useVmLang, VM_STRINGS } from '@/i18n/redesign'
@@ -30,6 +32,7 @@ type NavItem = {
 
 const mainNav: NavItem[] = [
   { id: 'workspace', path: '/', icon: <LayoutGrid />, zhKey: 'workspace' },
+  { id: 'articles', path: '/articles', icon: <Newspaper />, zhKey: 'articles' },
   { id: 'hot-videos', path: '/hot-videos', icon: <Flame />, zhKey: 'hotVideos' },
   { id: 'collections', path: '/collections', icon: <Library />, zhKey: 'collections' },
   { id: 'knowledge', path: '/knowledge', icon: <Search />, zhKey: 'knowledge' },
@@ -40,14 +43,31 @@ const mainNav: NavItem[] = [
 
 const settingsNav: NavItem[] = [
   { id: 'models', path: '/settings/model', icon: <BotMessageSquare />, zhKey: 'aiModels' },
-  { id: 'transcriber', path: '/settings/transcriber', icon: <AudioWaveform />, zhKey: 'transcriber' },
-  { id: 'downloader', path: '/settings/download', icon: <HardDriveDownload />, zhKey: 'downloader' },
+  {
+    id: 'transcriber',
+    path: '/settings/transcriber',
+    icon: <AudioWaveform />,
+    zhKey: 'transcriber',
+  },
+  {
+    id: 'downloader',
+    path: '/settings/download',
+    icon: <HardDriveDownload />,
+    zhKey: 'downloader',
+  },
+  {
+    id: 'access-password',
+    path: '/settings/access-password',
+    icon: <KeyRound />,
+    zhKey: 'accessPassword',
+  },
   { id: 'monitor', path: '/settings/monitor', icon: <Activity />, zhKey: 'monitor' },
   { id: 'about', path: '/settings/about', icon: <Info />, zhKey: 'about' },
 ]
 
 const pageMeta: Record<string, { titleKey: string; subKey: string }> = {
   '/': { titleKey: 'workspace', subKey: 'newNoteSub' },
+  '/articles': { titleKey: 'articles', subKey: 'articlesSub' },
   '/hot-videos': { titleKey: 'hotVideos', subKey: 'hotVideosSub' },
   '/tasks': { titleKey: 'tasks', subKey: 'tasksSub' },
   '/batch-import': { titleKey: 'batch', subKey: 'batchSub' },
@@ -65,7 +85,9 @@ const SidebarNavItem: FC<{ item: NavItem; lang: 'zh' | 'en'; showEn: boolean }> 
   const location = useLocation()
   const isExactMatch = location.pathname === item.path
   const isPrefixMatch =
-    item.path !== '/' && item.path !== '/settings/model' && location.pathname.startsWith(item.path + '/')
+    item.path !== '/' &&
+    item.path !== '/settings/model' &&
+    location.pathname.startsWith(item.path + '/')
   // for the AI models item, treat any /settings/ child (without its own nav) as a fallback for /settings root
   const active = isExactMatch || isPrefixMatch
   const zh = trVm(item.zhKey, 'zh')
@@ -73,7 +95,10 @@ const SidebarNavItem: FC<{ item: NavItem; lang: 'zh' | 'en'; showEn: boolean }> 
   const label = lang === 'zh' ? zh : en
   const altLabel = lang === 'zh' ? en : zh
   return (
-    <button className={'vm-nav-item' + (active ? ' active' : '')} onClick={() => navigate(item.path)}>
+    <button
+      className={'vm-nav-item' + (active ? ' active' : '')}
+      onClick={() => navigate(item.path)}
+    >
       <span className="vm-nav-ico">{item.icon}</span>
       <span>{label}</span>
       {showEn && <span className="vm-nav-en">{altLabel}</span>}
@@ -136,11 +161,13 @@ const MainLayout: FC = () => {
           ? 'transcriber'
           : seg === 'download'
             ? 'downloader'
-            : seg === 'monitor'
-              ? 'monitor'
-              : seg === 'about'
-                ? 'about'
-                : 'aiModels'
+            : seg === 'access-password'
+              ? 'accessPassword'
+              : seg === 'monitor'
+                ? 'monitor'
+                : seg === 'about'
+                  ? 'about'
+                  : 'aiModels'
       return { titleKey: key, subKey: '' }
     }
     return { titleKey: 'workspace', subKey: 'newNoteSub' }
