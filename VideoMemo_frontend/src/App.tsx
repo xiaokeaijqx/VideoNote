@@ -22,6 +22,7 @@ const Knowledge = lazy(() => import('@/pages/Knowledge'))
 const TaskList = lazy(() => import('@/pages/TaskList'))
 const BatchImport = lazy(() => import('@/pages/BatchImport'))
 const HotVideos = lazy(() => import('@/pages/HotVideos'))
+const Articles = lazy(() => import('@/pages/Articles'))
 const Guide = lazy(() => import('@/pages/Guide'))
 
 // 桌面端首启引导守卫：未完成 onboarding 时强制跳到 /onboarding
@@ -92,6 +93,7 @@ function App() {
                 <Route path="knowledge" element={<Knowledge />} />
                 <Route path="tasks" element={<TaskList />} />
                 <Route path="hot-videos" element={<HotVideos />} />
+                <Route path="articles" element={<Articles />} />
                 <Route path="batch-import" element={<BatchImport />} />
                 <Route path="guide" element={<Guide />} />
                 <Route path="settings" element={<SettingPage />}>

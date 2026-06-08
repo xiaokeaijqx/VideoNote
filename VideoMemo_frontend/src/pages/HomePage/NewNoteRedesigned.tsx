@@ -17,6 +17,7 @@ import {
   AudioWaveform,
   ArrowRight,
   Bot,
+  Newspaper,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { generateNote } from '@/services/note.ts'
@@ -284,9 +285,15 @@ const NewNoteRedesigned: FC = () => {
     <div className="vm-content-inner narrow vm-fade-up">
       {/* Source */}
       <div className="vm-card vm-card-pad" style={{ marginBottom: 18 }}>
-        <div className="vm-row" style={{ marginBottom: 14 }}>
-          <div className="vm-sec-title">{trVm('videoSource', lang)}</div>
-          <div className="vm-sec-en">{lang === 'zh' ? 'Video source' : '视频来源'}</div>
+        <div className="vm-row" style={{ justifyContent: 'space-between', marginBottom: 14 }}>
+          <div className="vm-row">
+            <div className="vm-sec-title">{trVm('videoSource', lang)}</div>
+            <div className="vm-sec-en">{lang === 'zh' ? 'Video source' : '视频来源'}</div>
+          </div>
+          <button className="vm-btn vm-btn-outline vm-btn-sm" onClick={() => navigate('/articles')}>
+            <Newspaper size={15} />
+            文章总结
+          </button>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
           <VmSelect
