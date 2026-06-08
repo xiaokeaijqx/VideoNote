@@ -6,7 +6,7 @@ import re
 import subprocess
 from dataclasses import dataclass, field
 from typing import Any, Literal, Optional, Union
-from urllib.parse import unquote
+from urllib.parse import parse_qs, unquote, urlparse
 
 import requests
 
@@ -72,6 +72,20 @@ def expand_share_url(share_text: str) -> str:
     return match.group(0).rstrip("/.,;)")
 
 
+def _extract_aweme_id_from_search_url(url: str) -> Optional[str]:
+    parsed = urlparse(url)
+    if not parsed.netloc.endswith("douyin.com") or not parsed.path.startswith("/search"):
+        return None
+
+    params = parse_qs(parsed.query)
+    for key in ("modal_id", "item_ids"):
+        for value in params.get(key, []):
+            match = re.search(r"\d{10,}", value)
+            if match:
+                return match.group(0)
+    return None
+
+
 def normalize_to_share_page(url: str) -> str:
     """www.douyin.com 的 video/note 页面转为移动端分享页。"""
     note = re.search(r"https?://(?:www\.)?douyin\.com/note/(\d+)", url)
@@ -80,6 +94,9 @@ def normalize_to_share_page(url: str) -> str:
     video = re.search(r"https?://(?:www\.)?douyin\.com/video/(\d+)", url)
     if video:
         return f"https://www.iesdouyin.com/share/video/{video.group(1)}/"
+    search_aweme_id = _extract_aweme_id_from_search_url(url)
+    if search_aweme_id:
+        return f"https://www.iesdouyin.com/share/video/{search_aweme_id}/"
     return url
 
 
