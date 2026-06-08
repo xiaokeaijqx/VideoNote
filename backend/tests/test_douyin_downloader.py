@@ -88,9 +88,17 @@ def test_expand_share_url_extracts_douyin_url_from_share_text():
             f"https://www.douyin.com/note/{AWEME_ID}",
             f"https://www.iesdouyin.com/share/note/{AWEME_ID}/",
         ),
+        (
+            f"https://www.douyin.com/search/agent?aid=abc&modal_id={AWEME_ID}&type=general",
+            f"https://www.iesdouyin.com/share/video/{AWEME_ID}/",
+        ),
+        (
+            f"https://www.douyin.com/search/%E7%9F%A5%E8%AF%86?item_ids={AWEME_ID}",
+            f"https://www.iesdouyin.com/share/video/{AWEME_ID}/",
+        ),
     ],
 )
-def test_normalize_to_share_page_converts_www_video_and_note_urls(url, expected):
+def test_normalize_to_share_page_converts_www_urls(url, expected):
     assert douyin_downloader.normalize_to_share_page(url) == expected
 
 
@@ -112,6 +120,35 @@ def test_parse_share_page_html_reads_router_data_video_metadata():
         f"https://aweme.snssdk.com/aweme/v1/play/?video_id={VIDEO_ID}&ratio=720p&line=0"
     )
     assert meta.tags == ["知识"]
+
+
+def test_resolve_douyin_share_fetches_share_page_for_search_modal(monkeypatch):
+    html = _router_html(_video_item())
+    requested_urls = []
+    search_url = (
+        "https://www.douyin.com/search/agent"
+        f"?aid=4848bd6d-24bb-480e-aec8-b3ba55799c17&modal_id={AWEME_ID}&type=general"
+    )
+
+    class DummySession:
+        headers = {}
+
+        def get(self, url, allow_redirects=True, timeout=30):
+            requested_urls.append(url)
+            return DummyResponse(
+                text=html,
+                url=f"https://www.iesdouyin.com/share/video/{AWEME_ID}/",
+            )
+
+    monkeypatch.setattr(douyin_downloader, "_session", lambda: DummySession())
+
+    meta = douyin_downloader.resolve_douyin_share(search_url)
+
+    assert requested_urls == [f"https://www.iesdouyin.com/share/video/{AWEME_ID}/"]
+    assert meta.aweme_id == AWEME_ID
+    assert meta.download_url == (
+        f"https://aweme.snssdk.com/aweme/v1/play/?video_id={VIDEO_ID}&ratio=720p&line=0"
+    )
 
 
 def test_parse_share_page_html_raises_actionable_error_without_ssr_data():
