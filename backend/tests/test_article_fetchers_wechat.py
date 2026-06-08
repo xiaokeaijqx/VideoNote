@@ -1,4 +1,5 @@
 from app.article_fetchers.wechat import parse_wechat_article_html
+from app.article_fetchers.wechat import parse_wechat_search_html
 
 
 WECHAT_HTML = """
@@ -49,3 +50,26 @@ def test_parse_wechat_article_fails_when_body_is_empty():
         assert "正文" in str(exc)
     else:
         raise AssertionError("expected parser to reject empty article body")
+
+
+def test_parse_wechat_search_html_extracts_article_results():
+    html = """
+    <html>
+      <body>
+        <div class="news-box">
+          <a target="_blank" href="/link?url=https%3A%2F%2Fmp.weixin.qq.com%2Fs%2Fabc">AI工具清单</a>
+          <p class="txt-info">公众号作者</p>
+          <p class="txt-info">正文摘要</p>
+        </div>
+      </body>
+    </html>
+    """
+
+    items = parse_wechat_search_html(html, "AI工具", limit=5)
+
+    assert len(items) == 1
+    assert items[0].platform == "wechat_mp"
+    assert items[0].title == "AI工具清单"
+    assert items[0].url == "https://mp.weixin.qq.com/s/abc"
+    assert items[0].author_name == "公众号作者"
+    assert items[0].content_text == "正文摘要"

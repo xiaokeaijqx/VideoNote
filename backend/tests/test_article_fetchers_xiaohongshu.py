@@ -1,4 +1,7 @@
-from app.article_fetchers.xiaohongshu import parse_xiaohongshu_article_html
+from app.article_fetchers.xiaohongshu import (
+    parse_xiaohongshu_article_html,
+    parse_xiaohongshu_discovery_html,
+)
 
 
 XHS_HTML = """
@@ -64,3 +67,37 @@ def test_parse_xiaohongshu_article_falls_back_to_meta_text():
     assert article.article_id == "fallback"
     assert article.title == "备用标题"
     assert article.content_text == "备用正文"
+
+
+def test_parse_xiaohongshu_discovery_html_extracts_note_cards():
+    html = """
+    <script>
+      window.__INITIAL_STATE__ = {
+        "feeds": {
+          "items": [
+            {
+              "id": "note-a",
+              "title": "AI工具分享",
+              "desc": "正文摘要",
+              "user": {"userId": "u1", "nickname": "作者A"},
+              "cover": {"url": "https://sns-img-qc.xhscdn.com/cover.jpg"}
+            }
+          ]
+        }
+      };
+    </script>
+    """
+
+    items = parse_xiaohongshu_discovery_html(
+        html,
+        source_url="https://www.xiaohongshu.com/search_result?keyword=AI",
+        limit=10,
+    )
+
+    assert len(items) == 1
+    assert items[0].platform == "xiaohongshu"
+    assert items[0].article_id == "note-a"
+    assert items[0].title == "AI工具分享"
+    assert items[0].url == "https://www.xiaohongshu.com/explore/note-a"
+    assert items[0].author_name == "作者A"
+    assert items[0].cover_url == "https://sns-img-qc.xhscdn.com/cover.jpg"
