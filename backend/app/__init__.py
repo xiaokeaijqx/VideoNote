@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 
 def create_app(lifespan) -> FastAPI:
-    from .routers import note, provider, model, config, chat, flashcard, hot_videos
+    from .routers import note, provider, model, config, chat, flashcard, hot_videos, article
     from .utils.response import ResponseWrapper as R
 
     app = FastAPI(title="VideoMemo",lifespan=lifespan)
@@ -17,5 +17,6 @@ def create_app(lifespan) -> FastAPI:
     app.include_router(chat.router, prefix="/api")
     app.include_router(flashcard.router, prefix="/api")
     app.include_router(hot_videos.router, prefix="/api")
+    app.include_router(article.router, prefix="/api")
 
     return app

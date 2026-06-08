@@ -141,6 +141,19 @@ class ArticleService:
     def list_items(self, subscription_id: int | None = None) -> list[dict]:
         return [self._item_payload(item) for item in list_article_items(subscription_id)]
 
+    def create_subscription(
+        self,
+        platform: str,
+        subscription_type: str,
+        query: str,
+        label: str = "",
+    ) -> dict:
+        subscription = create_subscription(platform, subscription_type, query, label)
+        return self._subscription_payload(subscription)
+
+    def list_subscriptions(self) -> list[dict]:
+        return [self._subscription_payload(item) for item in list_subscriptions()]
+
     def _fetcher(self, platform: str) -> ArticleFetcher:
         if platform not in self.fetchers:
             raise ValueError(f"不支持的文章平台：{platform}")
@@ -158,6 +171,17 @@ class ArticleService:
             "published_at": item.published_at,
             "summary_status": item.summary_status,
             "task_id": item.task_id,
+        }
+
+    def _subscription_payload(self, item) -> dict:
+        return {
+            "id": item.id,
+            "platform": item.platform,
+            "type": item.type,
+            "query": item.query,
+            "label": item.label,
+            "enabled": item.enabled,
+            "last_error": item.last_error,
         }
 
     def _create_gpt(self, model_name: str, provider_id: str):
