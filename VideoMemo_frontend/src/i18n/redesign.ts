@@ -29,6 +29,8 @@ export const VM_STRINGS: Dict = {
   generate: { zh: '生成笔记', en: 'Generate note' },
   batch: { zh: '批量视频导入', en: 'Batch import' },
   batchSub: { zh: '每行一个链接，统一设置后一键生成', en: 'One link per line — one set of options, generate all at once' },
+  hotVideos: { zh: '热点推荐', en: 'Trending' },
+  hotVideosSub: { zh: '选择热门视频，回到工作区生成笔记', en: 'Pick a trending video and generate a note' },
   links: { zh: '视频链接', en: 'Video links' },
   linksHint: { zh: '每行粘贴一个', en: 'One per line' },
   valid: { zh: '有效', en: 'Valid' },

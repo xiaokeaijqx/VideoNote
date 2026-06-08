@@ -30,9 +30,10 @@ const DEFAULT_MESSAGES: Record<HotVideoItemPlatform, string> = {
 
 export interface HotVideoRecommendationsProps {
   onSelect: (item: HotVideoItem) => void
+  standalone?: boolean
 }
 
-const HotVideoRecommendations: FC<HotVideoRecommendationsProps> = ({ onSelect }) => {
+const HotVideoRecommendations: FC<HotVideoRecommendationsProps> = ({ onSelect, standalone = false }) => {
   const lang = useVmLang()
   const [active, setActive] = useState<HotVideoPlatform>('all')
   const [loading, setLoading] = useState(false)
@@ -64,7 +65,13 @@ const HotVideoRecommendations: FC<HotVideoRecommendationsProps> = ({ onSelect })
   const notices = useMemo(() => results.filter(result => result.status !== 'ok'), [results])
 
   return (
-    <div style={{ marginTop: 14, borderTop: '1px solid var(--vm-border)', paddingTop: 14 }}>
+    <div
+      style={
+        standalone
+          ? {}
+          : { marginTop: 14, borderTop: '1px solid var(--vm-border)', paddingTop: 14 }
+      }
+    >
       <div className="vm-row" style={{ justifyContent: 'space-between', marginBottom: 10 }}>
         <div className="vm-row" style={{ gap: 8 }}>
           <span style={{ color: 'var(--vm-primary)', display: 'grid' }}>

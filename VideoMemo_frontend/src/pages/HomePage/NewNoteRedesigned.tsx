@@ -34,8 +34,6 @@ import { Segmented } from '@/components/design/Segmented'
 import { VmSelect } from '@/components/design/VmSelect'
 import { GenHero, Spinner } from '@/components/design/animations'
 import { useVmLang, trVm } from '@/i18n/redesign'
-import HotVideoRecommendations from '@/pages/HomePage/components/HotVideoRecommendations'
-import type { HotVideoItem } from '@/services/hotVideos'
 
 const QUALITIES = [
   { value: 'fast', zh: '快速', en: 'Fast' },
@@ -176,13 +174,6 @@ const NewNoteRedesigned: FC = () => {
   }, [customPlatformList])
 
   const detectedShow = !!detectPlatform(url)
-  const handleHotVideoSelect = (item: HotVideoItem) => {
-    setPlatform(item.platform)
-    setUrl(item.url)
-    setTouchedPf(true)
-    setShowHist(false)
-    toast.success(lang === 'zh' ? '已填入热点视频链接' : 'Trending video selected')
-  }
   const toggleFmt = (v: string) =>
     setFormats(f => (f.includes(v) ? f.filter(x => x !== v) : [...f, v]))
 
@@ -441,7 +432,6 @@ const NewNoteRedesigned: FC = () => {
             </div>
           </div>
         )}
-        {platform !== 'local' && <HotVideoRecommendations onSelect={handleHotVideoSelect} />}
       </div>
 
       {/* Model + Style + Quality */}
