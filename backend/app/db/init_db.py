@@ -1,3 +1,4 @@
+from app.db.models.articles import ArticleItem, ArticleSubscription, ArticleSubscriptionItem
 from app.db.models.models import Model
 from app.db.models.providers import Provider
 from app.db.models.video_tasks import VideoTask
