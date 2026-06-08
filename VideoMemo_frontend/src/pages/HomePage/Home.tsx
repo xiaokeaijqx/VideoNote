@@ -1,4 +1,5 @@
 import { FC, useEffect, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { Plus } from 'lucide-react'
 import MarkdownViewer from '@/pages/HomePage/components/MarkdownViewer.tsx'
 import NewNoteRedesigned from '@/pages/HomePage/NewNoteRedesigned.tsx'
@@ -18,6 +19,7 @@ type ViewStatus = 'idle' | 'loading' | 'success' | 'failed'
  */
 export const HomePage: FC = () => {
   const lang = useVmLang()
+  const location = useLocation()
   const tasks = useTaskStore(state => state.tasks)
   const currentTaskId = useTaskStore(state => state.currentTaskId)
   const setCurrentTask = useTaskStore(state => state.setCurrentTask)
@@ -28,6 +30,13 @@ export const HomePage: FC = () => {
   // 「没有任何笔记」时是否已经主动进入新建状态。点了 CTA 才显示表单，
   // 避免一进来就看到一大堆表单字段，欢迎体验更柔和。
   const [createMode, setCreateMode] = useState(false)
+
+  useEffect(() => {
+    const state = location.state as { createFromHot?: boolean } | null
+    if (!state?.createFromHot) return
+    setCurrentTask(null)
+    setCreateMode(true)
+  }, [location.state, setCurrentTask])
 
   useEffect(() => {
     if (!currentTask) {
