@@ -29,6 +29,11 @@ export const VM_STRINGS: Dict = {
   generate: { zh: '生成笔记', en: 'Generate note' },
   batch: { zh: '批量视频导入', en: 'Batch import' },
   batchSub: { zh: '每行一个链接，统一设置后一键生成', en: 'One link per line — one set of options, generate all at once' },
+  articles: { zh: '文章订阅', en: 'Articles' },
+  articlesSub: {
+    zh: '抓取总结小红书与公众号文章，管理关键字和发布者订阅',
+    en: 'Summarize articles and manage keyword or publisher subscriptions',
+  },
   hotVideos: { zh: '热点推荐', en: 'Trending' },
   hotVideosSub: { zh: '选择热门视频，回到工作区生成笔记', en: 'Pick a trending video and generate a note' },
   links: { zh: '视频链接', en: 'Video links' },

@@ -15,6 +15,7 @@ import {
   Plus,
   Palette,
   Flame,
+  Newspaper,
 } from 'lucide-react'
 import { BrandMark } from '@/components/design/BrandMark'
 import { trVm, useVmLang, VM_STRINGS } from '@/i18n/redesign'
@@ -30,6 +31,7 @@ type NavItem = {
 
 const mainNav: NavItem[] = [
   { id: 'workspace', path: '/', icon: <LayoutGrid />, zhKey: 'workspace' },
+  { id: 'articles', path: '/articles', icon: <Newspaper />, zhKey: 'articles' },
   { id: 'hot-videos', path: '/hot-videos', icon: <Flame />, zhKey: 'hotVideos' },
   { id: 'collections', path: '/collections', icon: <Library />, zhKey: 'collections' },
   { id: 'knowledge', path: '/knowledge', icon: <Search />, zhKey: 'knowledge' },
@@ -48,6 +50,7 @@ const settingsNav: NavItem[] = [
 
 const pageMeta: Record<string, { titleKey: string; subKey: string }> = {
   '/': { titleKey: 'workspace', subKey: 'newNoteSub' },
+  '/articles': { titleKey: 'articles', subKey: 'articlesSub' },
   '/hot-videos': { titleKey: 'hotVideos', subKey: 'hotVideosSub' },
   '/tasks': { titleKey: 'tasks', subKey: 'tasksSub' },
   '/batch-import': { titleKey: 'batch', subKey: 'batchSub' },
