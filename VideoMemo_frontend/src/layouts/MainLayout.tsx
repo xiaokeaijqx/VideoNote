@@ -1,4 +1,4 @@
-import { FC, useMemo } from 'react'
+import { FC, useMemo, useState } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
   LayoutGrid,
@@ -17,6 +17,8 @@ import {
   Flame,
   KeyRound,
   Newspaper,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from 'lucide-react'
 import { BrandMark } from '@/components/design/BrandMark'
 import { trVm, useVmLang, VM_STRINGS } from '@/i18n/redesign'
@@ -76,10 +78,16 @@ const pageMeta: Record<string, { titleKey: string; subKey: string }> = {
   '/guide': { titleKey: 'guide', subKey: '' },
 }
 
-const SidebarNavItem: FC<{ item: NavItem; lang: 'zh' | 'en'; showEn: boolean }> = ({
+const SidebarNavItem: FC<{
+  item: NavItem
+  lang: 'zh' | 'en'
+  showEn: boolean
+  collapsed: boolean
+}> = ({
   item,
   lang,
   showEn,
+  collapsed,
 }) => {
   const navigate = useNavigate()
   const location = useLocation()
@@ -98,10 +106,11 @@ const SidebarNavItem: FC<{ item: NavItem; lang: 'zh' | 'en'; showEn: boolean }> 
     <button
       className={'vm-nav-item' + (active ? ' active' : '')}
       onClick={() => navigate(item.path)}
+      title={collapsed ? label : undefined}
     >
       <span className="vm-nav-ico">{item.icon}</span>
-      <span>{label}</span>
-      {showEn && <span className="vm-nav-en">{altLabel}</span>}
+      {!collapsed && <span>{label}</span>}
+      {!collapsed && showEn && <span className="vm-nav-en">{altLabel}</span>}
     </button>
   )
 }
@@ -142,6 +151,7 @@ const MainLayout: FC = () => {
   const setLang = useThemeStore(s => s.setLang)
   const showEn = useThemeStore(s => s.showNavEn)
   const setCurrentTask = useTaskStore(s => s.setCurrentTask)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -172,35 +182,57 @@ const MainLayout: FC = () => {
     }
     return { titleKey: 'workspace', subKey: 'newNoteSub' }
   }, [location.pathname])
+  const hidePageHeading = location.pathname === '/articles'
 
   return (
-    <div className="vm-app vm-scope">
+    <div className={'vm-app vm-scope' + (sidebarCollapsed ? ' sidebar-collapsed' : '')}>
       <aside className="vm-sidebar">
         <div className="vm-brand">
           <BrandMark />
-          <div>
+          <div className="vm-brand-text">
             <div className="vm-brand-name">VideoMemo</div>
             <div className="vm-brand-sub">AI VIDEO NOTES</div>
           </div>
+          <button
+            className="vm-sidebar-toggle"
+            type="button"
+            title={sidebarCollapsed ? '展开菜单栏' : '收起菜单栏'}
+            onClick={() => setSidebarCollapsed(v => !v)}
+          >
+            {sidebarCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+          </button>
         </div>
 
         <button
-          className="vm-btn vm-btn-primary vm-btn-block"
+          className="vm-btn vm-btn-primary vm-btn-block vm-sidebar-new"
           style={{ margin: '2px 4px 8px', width: 'calc(100% - 8px)' }}
           onClick={handleNewNote}
+          title={sidebarCollapsed ? trVm('newNote', lang) : undefined}
         >
           <Plus size={18} />
-          {trVm('newNote', lang)}
+          {!sidebarCollapsed && trVm('newNote', lang)}
         </button>
 
         <div className="vm-nav-group-label">{lang === 'zh' ? '工作台' : 'Workspace'}</div>
         {mainNav.map(n => (
-          <SidebarNavItem key={n.id} item={n} lang={lang} showEn={showEn} />
+          <SidebarNavItem
+            key={n.id}
+            item={n}
+            lang={lang}
+            showEn={showEn}
+            collapsed={sidebarCollapsed}
+          />
         ))}
 
         <div className="vm-nav-group-label">{lang === 'zh' ? '设置' : 'Settings'}</div>
         {settingsNav.map(n => (
-          <SidebarNavItem key={n.id} item={n} lang={lang} showEn={showEn} />
+          <SidebarNavItem
+            key={n.id}
+            item={n}
+            lang={lang}
+            showEn={showEn}
+            collapsed={sidebarCollapsed}
+          />
         ))}
 
         <div className="vm-sidebar-foot">
@@ -223,10 +255,12 @@ const MainLayout: FC = () => {
 
       <div className="vm-main">
         <header className="vm-topbar">
-          <div style={{ minWidth: 0 }}>
-            <div className="vm-page-title">{trVm(meta.titleKey, lang)}</div>
-            {meta.subKey && <div className="vm-page-sub">{trVm(meta.subKey, lang)}</div>}
-          </div>
+          {!hidePageHeading && (
+            <div style={{ minWidth: 0 }}>
+              <div className="vm-page-title">{trVm(meta.titleKey, lang)}</div>
+              {meta.subKey && <div className="vm-page-sub">{trVm(meta.subKey, lang)}</div>}
+            </div>
+          )}
           <div className="vm-topbar-actions">
             {location.pathname === '/' && (
               <button

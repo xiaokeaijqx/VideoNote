@@ -10,6 +10,7 @@ def init_db():
 
     Base.metadata.create_all(bind=engine)
     _ensure_model_columns(engine)
+    _ensure_article_content_text(engine)
 
 
 def _ensure_model_columns(engine):
@@ -24,3 +25,14 @@ def _ensure_model_columns(engine):
             conn.execute(
                 text("ALTER TABLE models ADD COLUMN supports_multimodal BOOLEAN NOT NULL DEFAULT 0")
             )
+
+
+def _ensure_article_content_text(engine):
+    inspector = inspect(engine)
+    if "article_items" not in inspector.get_table_names():
+        return
+    columns = {column["name"] for column in inspector.get_columns("article_items")}
+    if "content_text" in columns:
+        return
+    with engine.begin() as conn:
+        conn.execute(text("ALTER TABLE article_items ADD COLUMN content_text TEXT NOT NULL DEFAULT ''"))

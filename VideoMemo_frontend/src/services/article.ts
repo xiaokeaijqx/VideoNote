@@ -1,6 +1,6 @@
 import request from '@/utils/request'
 
-export type ArticlePlatform = 'xiaohongshu' | 'wechat_mp'
+export type ArticlePlatform = 'xiaohongshu' | 'wechat_mp' | 'generic_web'
 export type ArticleSubscriptionType = 'keyword' | 'publisher'
 
 export interface ArticleItem {
@@ -14,6 +14,7 @@ export interface ArticleItem {
   published_at: string
   summary_status: 'pending' | 'summarizing' | 'summarized' | 'failed' | string
   task_id: string
+  content_text?: string
 }
 
 export interface ArticleSubscription {
@@ -36,6 +37,21 @@ export const generateArticle = async (data: {
   task_id?: string
 }): Promise<{ task_id: string; article_item_id: number }> => {
   return await request.post('/articles/generate', data)
+}
+
+export const importArticleContent = async (data: {
+  url?: string
+  platform: ArticlePlatform
+  title?: string
+  content_text: string
+  author_name?: string
+  provider_id: string
+  model_name: string
+  style: string
+  extras?: string
+  task_id?: string
+}): Promise<{ task_id: string; article_item_id: number }> => {
+  return await request.post('/articles/import_content', data)
 }
 
 export const searchArticles = async (params: {
@@ -75,6 +91,10 @@ export const listArticleItems = async (subscriptionId?: number): Promise<Article
   return await request.get('/article_items', {
     params: subscriptionId ? { subscription_id: subscriptionId } : undefined,
   })
+}
+
+export const getArticleItem = async (id: number): Promise<ArticleItem> => {
+  return await request.get(`/article_items/${encodeURIComponent(id)}`)
 }
 
 export const summarizeArticleItem = async (

@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Callable
 
 from app.article_fetchers.base import ArticleContent, ArticleFetcher
+from app.article_fetchers.generic import GenericArticleFetcher
 from app.article_fetchers.wechat import WechatArticleFetcher
 from app.article_fetchers.xiaohongshu import XiaohongshuArticleFetcher
 from app.db.article_dao import (
@@ -43,6 +44,7 @@ class ArticleService:
         self.fetchers = fetchers or {
             "wechat_mp": WechatArticleFetcher(),
             "xiaohongshu": XiaohongshuArticleFetcher(),
+            "generic_web": GenericArticleFetcher(),
         }
         self.gpt_factory = gpt_factory or self._create_gpt
 
@@ -57,28 +59,94 @@ class ArticleService:
         task_id: str | None = None,
     ) -> dict:
         task_id = task_id or str(uuid.uuid4())
-        self._update_status(task_id, TaskStatus.PARSING)
-        article = self._fetcher(platform).fetch(url)
-        item = upsert_article_item(article)
-        self._update_status(task_id, TaskStatus.TRANSCRIBING)
+        try:
+            self._update_status(task_id, TaskStatus.PARSING)
+            article = self._fetcher(platform).fetch(url)
+            item = upsert_article_item(article)
+            self._update_status(task_id, TaskStatus.TRANSCRIBING)
 
-        gpt = self.gpt_factory(model_name, provider_id)
-        markdown = gpt.summarize(
-            GPTSource(
-                segment=self._segments(article),
-                title=article.title,
-                tags="article",
-                style=style,
-                extras=extras,
+            gpt = self.gpt_factory(model_name, provider_id)
+            markdown = gpt.summarize(
+                GPTSource(
+                    segment=self._segments(article),
+                    title=article.title,
+                    tags="article",
+                    style=style,
+                    extras=extras,
+                )
             )
-        )
 
-        self._update_status(task_id, TaskStatus.SAVING)
-        self._write_note_json(task_id, article, markdown, int(getattr(gpt, "total_tokens", 0) or 0))
-        mark_article_summarized(item.id, task_id)
-        self._update_status(task_id, TaskStatus.SUCCESS)
-        self._index_task(task_id)
-        return {"task_id": task_id, "article_item_id": item.id}
+            self._update_status(task_id, TaskStatus.SAVING)
+            self._write_note_json(
+                task_id,
+                article,
+                markdown,
+                int(getattr(gpt, "total_tokens", 0) or 0),
+            )
+            mark_article_summarized(item.id, task_id)
+            self._update_status(task_id, TaskStatus.SUCCESS)
+            self._index_task(task_id)
+            return {"task_id": task_id, "article_item_id": item.id}
+        except Exception:
+            self._update_status(task_id, TaskStatus.FAILED)
+            raise
+
+    def generate_from_content(
+        self,
+        url: str,
+        platform: str,
+        title: str,
+        content_text: str,
+        provider_id: str,
+        model_name: str,
+        style: str = "",
+        extras: str = "",
+        author_name: str = "",
+        task_id: str | None = None,
+    ) -> dict:
+        body = (content_text or "").strip()
+        if len(body) < 20:
+            raise ValueError("导入正文过短，无法生成总结")
+        task_id = task_id or str(uuid.uuid4())
+        try:
+            self._update_status(task_id, TaskStatus.PARSING)
+            article = ArticleContent(
+                platform=platform or "generic_web",
+                url=url or f"manual://{task_id}",
+                article_id=url or task_id,
+                title=(title or "").strip() or "导入文章",
+                author_name=author_name,
+                content_text=body,
+                raw_metadata={"source": "manual_import"},
+            )
+            item = upsert_article_item(article)
+            self._update_status(task_id, TaskStatus.TRANSCRIBING)
+
+            gpt = self.gpt_factory(model_name, provider_id)
+            markdown = gpt.summarize(
+                GPTSource(
+                    segment=self._segments(article),
+                    title=article.title,
+                    tags="article",
+                    style=style,
+                    extras=extras,
+                )
+            )
+
+            self._update_status(task_id, TaskStatus.SAVING)
+            self._write_note_json(
+                task_id,
+                article,
+                markdown,
+                int(getattr(gpt, "total_tokens", 0) or 0),
+            )
+            mark_article_summarized(item.id, task_id)
+            self._update_status(task_id, TaskStatus.SUCCESS)
+            self._index_task(task_id)
+            return {"task_id": task_id, "article_item_id": item.id}
+        except Exception:
+            self._update_status(task_id, TaskStatus.FAILED)
+            raise
 
     def search(self, platform: str, keyword: str, limit: int = 20) -> dict:
         articles = self._fetcher(platform).search(keyword, limit)
@@ -141,6 +209,12 @@ class ArticleService:
     def list_items(self, subscription_id: int | None = None) -> list[dict]:
         return [self._item_payload(item) for item in list_article_items(subscription_id)]
 
+    def get_item(self, item_id: int) -> dict:
+        item = get_article_item(item_id)
+        if not item:
+            raise ValueError("文章不存在")
+        return self._item_payload(item, include_content=True)
+
     def create_subscription(
         self,
         platform: str,
@@ -159,8 +233,8 @@ class ArticleService:
             raise ValueError(f"不支持的文章平台：{platform}")
         return self.fetchers[platform]
 
-    def _item_payload(self, item) -> dict:
-        return {
+    def _item_payload(self, item, include_content: bool = False) -> dict:
+        payload = {
             "id": item.id,
             "platform": item.platform,
             "title": item.title,
@@ -172,6 +246,24 @@ class ArticleService:
             "summary_status": item.summary_status,
             "task_id": item.task_id,
         }
+        if include_content:
+            payload["content_text"] = (getattr(item, "content_text", "") or "").strip()
+            if not payload["content_text"] and item.task_id:
+                payload["content_text"] = self._content_from_note_result(item.task_id)
+        return payload
+
+    def _content_from_note_result(self, task_id: str) -> str:
+        if not task_id:
+            return ""
+        result_path = _note_output_dir() / f"{task_id}.json"
+        if not result_path.exists():
+            return ""
+        try:
+            payload = json.loads(result_path.read_text(encoding="utf-8"))
+        except Exception:
+            return ""
+        transcript = payload.get("transcript") or {}
+        return str(transcript.get("full_text") or "").strip()
 
     def _subscription_payload(self, item) -> dict:
         return {

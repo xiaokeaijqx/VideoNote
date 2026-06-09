@@ -22,6 +22,7 @@ class ArticleItem(Base):
     task_id = Column(String, nullable=False, default="")
     cover_url = Column(Text, nullable=False, default="")
     published_at = Column(String, nullable=False, default="")
+    content_text = Column(Text, nullable=False, default="")
     discovered_at = Column(DateTime, server_default=func.now())
     raw_metadata = Column(Text, nullable=False, default="{}")
 

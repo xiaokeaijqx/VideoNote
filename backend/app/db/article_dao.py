@@ -48,6 +48,7 @@ def upsert_article_item(article: ArticleContent) -> ArticleItem:
         item.author_id = article.author_id
         item.cover_url = article.cover_url
         item.published_at = article.published_at
+        item.content_text = article.content_text
         item.raw_metadata = json.dumps(article.raw_metadata or {}, ensure_ascii=False)
         db.commit()
         db.refresh(item)
