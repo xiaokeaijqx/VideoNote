@@ -36,7 +36,11 @@ from app.transcriber.transcriber_provider import get_transcriber, _transcribers
 from app.utils.cover_helper import localize_cover
 from app.utils.note_helper import replace_content_markers, prepend_source_link, normalize_toc
 from app.utils.path_helper import get_runtime_dir
-from app.utils.screenshot_marker import extract_screenshot_timestamps, remove_screenshot_markers
+from app.utils.screenshot_marker import (
+    ensure_screenshot_markers,
+    extract_screenshot_timestamps,
+    remove_screenshot_markers,
+)
 from app.utils.status_code import StatusCode
 from app.utils.video_helper import generate_screenshot
 from app.utils.video_reader import VideoReader
@@ -215,6 +219,23 @@ class NoteGenerator:
             downloader = self._get_downloader(platform)
             gpt = self._get_gpt(model_name, provider_id)
             _format = list(_format or [])
+            if screenshot and "screenshot" not in _format:
+                _format.append("screenshot")
+            if link and "link" not in _format:
+                _format.append("link")
+            screenshot = screenshot or "screenshot" in _format
+            link = link or "link" in _format
+            logger.info(
+                "生成选项: task_id=%s platform=%s model=%s format=%s "
+                "screenshot=%s link=%s video_understanding=%s",
+                task_id,
+                platform,
+                model_name,
+                _format,
+                screenshot,
+                link,
+                video_understanding,
+            )
 
             if not self._model_supports_multimodal(provider_id, model_name):
                 if screenshot or video_understanding or "screenshot" in _format:
@@ -1002,9 +1023,10 @@ class NoteGenerator:
         """
         if "screenshot" in formats and video_path:
             try:
+                markdown = ensure_screenshot_markers(markdown, audio_meta.duration)
                 markdown = self._insert_screenshots(markdown, video_path)
             except Exception as exc:
-                logger.warning("截图插入失败，跳过该步骤")
+                logger.warning(f"截图插入失败，跳过该步骤：{exc}")
 
         if "link" in formats:
             try:

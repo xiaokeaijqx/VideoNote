@@ -9,9 +9,11 @@ export const generateNote = async (data: {
   provider_id: string
   task_id?: string
   format: Array<string>
+  link?: boolean
+  screenshot?: boolean
   style: string
   extras?: string
-  video_understand?: boolean
+  video_understanding?: boolean
   video_interval?: number
   grid_size: Array<number>
 }) => {
