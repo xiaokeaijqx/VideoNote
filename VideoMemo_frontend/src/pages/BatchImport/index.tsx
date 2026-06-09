@@ -25,6 +25,7 @@ import { useModelStore } from '@/store/modelStore'
 import { detectPlatform } from '@/utils/platform'
 import request from '@/utils/request'
 import { useVmLang, trVm } from '@/i18n/redesign'
+import { disableVisionFormats } from '@/utils/modelCapabilities'
 
 const QUALITIES = [
   { value: 'fast', zh: '快速', en: 'Fast' },
@@ -65,6 +66,18 @@ const BatchImport: FC = () => {
     if (!modelName && modelList[0]?.model_name) setModelName(modelList[0].model_name)
   }, [modelList, modelName])
 
+  const selectedModelConfig = useMemo(
+    () => modelList.find((model: any) => model.model_name === modelName),
+    [modelList, modelName]
+  )
+  const modelSupportsVision = Boolean((selectedModelConfig as any)?.supports_multimodal)
+
+  useEffect(() => {
+    if (!modelName || modelSupportsVision) return
+    setVision(false)
+    setFormats(f => disableVisionFormats(f))
+  }, [modelName, modelSupportsVision])
+
   const parsed = useMemo(() => {
     const lines = Array.from(
       new Set(
@@ -84,9 +97,14 @@ const BatchImport: FC = () => {
     return { valid, invalid, total: lines.length }
   }, [text])
 
-  const toggleFmt = (v: string) =>
+  const screenshotDisabled = !!modelName && !modelSupportsVision
+  const effectiveFormats = modelSupportsVision ? formats : disableVisionFormats(formats)
+  const effectiveVision = modelSupportsVision && vision
+  const toggleFmt = (v: string) => {
+    if (v === 'screenshot' && screenshotDisabled) return
     setFormats(f => (f.includes(v) ? f.filter(x => x !== v) : [...f, v]))
-  const screenshotEnabled = formats.includes('screenshot')
+  }
+  const screenshotEnabled = effectiveFormats.includes('screenshot')
 
   const handleSubmit = async () => {
     if (submitting) return
@@ -116,11 +134,11 @@ const BatchImport: FC = () => {
         quality,
         model_name: modelName,
         provider_id,
-        format: formats,
-        link: formats.includes('link'),
-        screenshot: formats.includes('screenshot'),
+        format: effectiveFormats,
+        link: effectiveFormats.includes('link'),
+        screenshot: effectiveFormats.includes('screenshot'),
         style,
-        video_understanding: vision,
+        video_understanding: effectiveVision,
         video_interval: intervalSec,
         grid_size: [cols, rows],
       }
@@ -338,9 +356,10 @@ const BatchImport: FC = () => {
           <Field label={trVm('contents', lang)}>
             <div className="vm-chip-row">
               {noteFormats.map(f => {
-                const on = formats.includes(f.value)
+                const disabled = f.value === 'screenshot' && screenshotDisabled
+                const on = effectiveFormats.includes(f.value)
                 return (
-                  <Chip key={f.value} on={on} onClick={() => toggleFmt(f.value)}>
+                  <Chip key={f.value} on={on} disabled={disabled} onClick={() => toggleFmt(f.value)}>
                     <span
                       style={{
                         display: 'grid',
@@ -369,9 +388,21 @@ const BatchImport: FC = () => {
           <Field label={trVm('videoUnd', lang)}>
             <div className="vm-row" style={{ justifyContent: 'space-between' }}>
               <span className="vm-field-hint">{trVm('videoUndHint', lang)}</span>
-              <Toggle on={vision} onClick={() => setVision(v => !v)} />
+              <Toggle
+                on={effectiveVision}
+                disabled={screenshotDisabled}
+                onClick={() => setVision(v => !v)}
+              />
             </div>
-            {vision && (
+            {screenshotDisabled && (
+              <div
+                className="vm-badge vm-badge-warn vm-fade-up"
+                style={{ marginTop: 12, borderRadius: 'var(--vm-radius-sm)', padding: '9px 13px' }}
+              >
+                <Bot size={15} /> {trVm('visionDisabled', lang)}
+              </div>
+            )}
+            {effectiveVision && (
               <div className="vm-grid-2" style={{ marginTop: 12 }}>
                 <input
                   className="vm-input"

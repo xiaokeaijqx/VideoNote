@@ -40,6 +40,10 @@ export const VM_STRINGS: Dict = {
   interval: { zh: '采样间隔 (秒)', en: 'Sample interval (s)' },
   grid: { zh: '拼图尺寸 (列 × 行)', en: 'Grid (cols × rows)' },
   visionWarn: { zh: '视频理解需使用多模态模型', en: 'Vision requires a multimodal model' },
+  visionDisabled: {
+    zh: '当前模型不是多模态模型，已自动关闭原片截图和视频理解',
+    en: 'This model is not multimodal, so screenshots and vision are off',
+  },
   notes: { zh: '备注', en: 'Extra instructions' },
   notesPh: {
     zh: '例如：请重点罗列每个步骤的命令…',

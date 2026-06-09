@@ -43,6 +43,7 @@ import {
   resetPromptTemplate,
   savePromptTemplate,
 } from '@/utils/promptTemplates'
+import { disableVisionFormats } from '@/utils/modelCapabilities'
 
 const QUALITIES = [
   { value: 'fast', zh: '快速', en: 'Fast' },
@@ -202,6 +203,18 @@ const NewNoteRedesigned: FC = () => {
     if (!modelName && modelList[0]?.model_name) setModelName(modelList[0].model_name)
   }, [modelList, modelName])
 
+  const selectedModelConfig = useMemo(
+    () => modelList.find((model: any) => model.model_name === modelName),
+    [modelList, modelName]
+  )
+  const modelSupportsVision = Boolean((selectedModelConfig as any)?.supports_multimodal)
+
+  useEffect(() => {
+    if (!modelName || modelSupportsVision) return
+    setVision(false)
+    setFormats(f => disableVisionFormats(f))
+  }, [modelName, modelSupportsVision])
+
   useEffect(() => {
     if (!url || (platform === 'local' && touchedPf)) return
     const detected = detectPlatform(url)
@@ -215,9 +228,14 @@ const NewNoteRedesigned: FC = () => {
   }, [customPlatformList])
 
   const detectedShow = !!detectPlatform(url)
-  const screenshotEnabled = formats.includes('screenshot')
-  const toggleFmt = (v: string) =>
+  const screenshotDisabled = !!modelName && !modelSupportsVision
+  const effectiveFormats = modelSupportsVision ? formats : disableVisionFormats(formats)
+  const effectiveVision = modelSupportsVision && vision
+  const screenshotEnabled = effectiveFormats.includes('screenshot')
+  const toggleFmt = (v: string) => {
+    if (v === 'screenshot' && screenshotDisabled) return
     setFormats(f => (f.includes(v) ? f.filter(x => x !== v) : [...f, v]))
+  }
   const currentPromptTemplate = promptTemplates.find(template => template.id === promptTemplateId)
   const applyPromptTemplate = () => {
     if (!currentPromptTemplate) return
@@ -284,12 +302,12 @@ const NewNoteRedesigned: FC = () => {
       quality,
       model_name: modelName,
       provider_id: (model as any).provider_id,
-      format: formats,
-      link: formats.includes('link'),
-      screenshot: formats.includes('screenshot'),
+      format: effectiveFormats,
+      link: effectiveFormats.includes('link'),
+      screenshot: effectiveFormats.includes('screenshot'),
       style,
       extras,
-      video_understanding: vision,
+      video_understanding: effectiveVision,
       // 采样间隔留空时兜底为默认 30 秒
       video_interval: intervalSec === '' ? 30 : intervalSec,
       grid_size: [cols, rows] as [number, number],
@@ -561,8 +579,10 @@ const NewNoteRedesigned: FC = () => {
         >
           <div className="vm-chip-row">
             {noteFormats.map(f => {
-              const disabled = f.value === 'link' && platform === 'local'
-              const on = formats.includes(f.value)
+              const disabled =
+                (f.value === 'link' && platform === 'local') ||
+                (f.value === 'screenshot' && screenshotDisabled)
+              const on = effectiveFormats.includes(f.value)
               return (
                 <Chip key={f.value} on={on} disabled={disabled} onClick={() => toggleFmt(f.value)}>
                   <span
@@ -594,7 +614,10 @@ const NewNoteRedesigned: FC = () => {
         <div className="vm-row" style={{ justifyContent: 'space-between' }}>
           <div className="vm-row" style={{ gap: 11 }}>
             <span
-              style={{ color: vision ? 'var(--vm-primary)' : 'var(--vm-faint)', display: 'grid' }}
+              style={{
+                color: effectiveVision ? 'var(--vm-primary)' : 'var(--vm-faint)',
+                display: 'grid',
+              }}
             >
               <ImageIcon size={19} />
             </span>
@@ -603,9 +626,21 @@ const NewNoteRedesigned: FC = () => {
               <div className="vm-field-hint">{trVm('videoUndHint', lang)}</div>
             </div>
           </div>
-          <Toggle on={vision} onClick={() => setVision(v => !v)} />
+          <Toggle
+            on={effectiveVision}
+            disabled={screenshotDisabled}
+            onClick={() => setVision(v => !v)}
+          />
         </div>
-        {vision && (
+        {screenshotDisabled && (
+          <div
+            className="vm-badge vm-badge-warn vm-fade-up"
+            style={{ marginTop: 14, borderRadius: 'var(--vm-radius-sm)', padding: '9px 13px' }}
+          >
+            <Bot size={15} /> {trVm('visionDisabled', lang)}
+          </div>
+        )}
+        {effectiveVision && (
           <div className="vm-fade-up" style={{ marginTop: 16 }}>
             <div className="vm-grid-2">
               <Field label={trVm('interval', lang)}>

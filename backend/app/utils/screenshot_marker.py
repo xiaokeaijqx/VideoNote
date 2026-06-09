@@ -11,3 +11,8 @@ def extract_screenshot_timestamps(markdown: str) -> List[Tuple[str, int]]:
         total_seconds = int(mm) * 60 + int(ss)
         results.append((match.group(1), total_seconds))
     return results
+
+
+def remove_screenshot_markers(markdown: str) -> str:
+    pattern = r"\*?Screenshot-(?:\[\d{2}:\d{2}\]|\d{2}:\d{2})"
+    return re.sub(pattern, "", markdown)
