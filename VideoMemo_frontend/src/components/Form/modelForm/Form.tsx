@@ -19,6 +19,7 @@ import { testConnection, deleteModelById } from '@/services/model.ts'
 import { ModelSelector } from '@/components/Form/modelForm/ModelSelector.tsx'
 import { X } from 'lucide-react'
 import { useModelStore } from '@/store/modelStore'
+import { Switch } from '@/components/ui/switch'
 
 // ✅ Provider表单schema
 const ProviderSchema = z.object({
@@ -33,6 +34,7 @@ type ProviderFormValues = z.infer<typeof ProviderSchema>
 interface EnabledModel {
   id: number
   model_name: string
+  supports_multimodal?: boolean
 }
 
 const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
@@ -48,6 +50,7 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
   const [isBuiltIn, setIsBuiltIn] = useState(false)
   const loadModelsById= useModelStore(state => state.loadModelsById)
   const loadModels = useModelStore(state => state.loadModels)
+  const updateModelCapability = useModelStore(state => state.updateModelCapability)
   const [models, setModels]= useState<EnabledModel[]>([])
   const providerForm = useForm<ProviderFormValues>({
     resolver: zodResolver(ProviderSchema),
@@ -101,6 +104,16 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
       await refreshEnabledModels()
     } catch (e) {
       toast.error('删除异常')
+    }
+  }
+
+  const handleCapabilityChange = async (modelId: number, supportsMultimodal: boolean) => {
+    try {
+      await updateModelCapability(modelId, supportsMultimodal)
+      toast.success('模型能力已更新')
+      await refreshEnabledModels()
+    } catch (e: any) {
+      toast.error(e?.msg || '模型能力更新失败')
     }
   }
   // 测试连通性
@@ -240,9 +253,17 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
                 models.map(model => (
                   <span
                     key={model.id}
-                    className="inline-flex items-center gap-1 rounded-md bg-blue-100 px-2 py-0.5 text-sm text-blue-700"
+                    className="inline-flex items-center gap-2 rounded-md bg-blue-100 px-2 py-1 text-sm text-blue-700"
                   >
                     {model.model_name}
+                    <label className="inline-flex items-center gap-1 text-xs text-blue-700">
+                      <Switch
+                        checked={Boolean(model.supports_multimodal)}
+                        onCheckedChange={checked => handleCapabilityChange(model.id, checked)}
+                        aria-label={`${model.model_name} 是否支持多模态`}
+                      />
+                      多模态
+                    </label>
                     <button
                       type="button"
                       onClick={() => handelDelete(model.id)}

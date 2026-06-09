@@ -34,8 +34,8 @@ def test_get_all_models_by_id_accepts_plain_model_list(monkeypatch):
 
     assert result == {
         "models": [
-            {"id": "deepseek-chat", "object": "model"},
-            {"id": "deepseek-reasoner", "object": "model"},
+            {"id": "deepseek-chat", "object": "model", "supports_multimodal": False},
+            {"id": "deepseek-reasoner", "object": "model", "supports_multimodal": False},
         ]
     }
 
@@ -54,4 +54,44 @@ def test_get_all_models_by_id_accepts_openai_page_data(monkeypatch):
 
     result = ModelService.get_all_models_by_id("openai")
 
-    assert result == {"models": [{"id": "gpt-4o-mini", "object": "model"}]}
+    assert result == {
+        "models": [{"id": "gpt-4o-mini", "object": "model", "supports_multimodal": False}]
+    }
+
+
+def test_format_models_defaults_supports_multimodal_false():
+    result = ModelService._format_models([
+        {"id": 1, "provider_id": 2, "model_name": "deepseek-chat"}
+    ])
+
+    assert result[0]["supports_multimodal"] is False
+
+
+def test_get_all_models_by_id_marks_remote_multimodal_metadata(monkeypatch):
+    monkeypatch.setattr(ProviderService, "get_provider_by_id", _provider)
+    monkeypatch.setattr(
+        ModelService,
+        "get_model_list",
+        lambda provider_id, verbose=False: [
+            {"id": "gpt-4o", "object": "model", "modalities": ["text", "image"]},
+            {"id": "deepseek-chat", "object": "model"},
+        ],
+    )
+
+    result = ModelService.get_all_models_by_id("openai")
+
+    assert result == {
+        "models": [
+            {
+                "id": "gpt-4o",
+                "object": "model",
+                "modalities": ["text", "image"],
+                "supports_multimodal": True,
+            },
+            {
+                "id": "deepseek-chat",
+                "object": "model",
+                "supports_multimodal": False,
+            },
+        ]
+    }

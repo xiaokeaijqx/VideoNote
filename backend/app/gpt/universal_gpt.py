@@ -23,6 +23,7 @@ class UniversalGPT(GPT):
         self.temperature = temperature
         self.screenshot = False
         self.link = False
+        self.vision_fallback_used = False
         # 本次 summarize 累计的 token 用量（跨分块/合并多次调用求和）
         self.total_tokens = 0
         self.max_request_bytes = int(os.getenv("OPENAI_MAX_REQUEST_BYTES", str(45 * 1024 * 1024)))
@@ -199,6 +200,48 @@ class UniversalGPT(GPT):
             or "only the default" in raw
         )
 
+    @staticmethod
+    def _is_image_url_unsupported_error(exc: Exception) -> bool:
+        raw = str(exc).lower()
+        return "image_url" in raw and (
+            "unknown variant" in raw
+            or "expected `text`" in raw
+            or "expected text" in raw
+            or "failed to deserialize" in raw
+            or "not support" in raw
+            or "unsupported" in raw
+        )
+
+    @staticmethod
+    def _remove_image_url_parts(messages: list) -> list | None:
+        fallback_note = "\n\n注意：当前模型不支持图片输入，系统已自动关闭原片截图/视频理解。请不要输出 Screenshot 标记。"
+        text_only_messages = []
+        removed_image = False
+
+        for message in messages:
+            next_message = dict(message)
+            content = next_message.get("content")
+            if isinstance(content, list):
+                text_parts = []
+                removed_message_image = False
+                for part in content:
+                    if not isinstance(part, dict):
+                        continue
+                    if part.get("type") == "image_url":
+                        removed_message_image = True
+                        removed_image = True
+                        continue
+                    if part.get("type") == "text":
+                        text = part.get("text")
+                        if text:
+                            text_parts.append(str(text))
+
+                if removed_message_image:
+                    next_message["content"] = "\n".join(text_parts) + fallback_note
+            text_only_messages.append(next_message)
+
+        return text_only_messages if removed_image else None
+
     def _do_create(self, messages: list):
         """单次调用。如果模型拒绝自定义 temperature，就地去掉该参数再试一次
         （不消耗外层的重试次数预算），仍失败则把异常抛给外层重试逻辑。"""
@@ -229,6 +272,7 @@ class UniversalGPT(GPT):
 
     def _chat_completion_create(self, messages: list):
         last_exc = None
+        used_text_only_fallback = False
         for attempt in range(self._max_retry_attempts):
             try:
                 response = self._do_create(messages)
@@ -236,6 +280,21 @@ class UniversalGPT(GPT):
                 return response
             except Exception as exc:
                 last_exc = exc
+                if not used_text_only_fallback and self._is_image_url_unsupported_error(exc):
+                    text_only_messages = self._remove_image_url_parts(messages)
+                    if text_only_messages:
+                        used_text_only_fallback = True
+                        self.vision_fallback_used = True
+                        messages = text_only_messages
+                        print(f"[universal_gpt] 模型 {self.model} 不支持 image_url，已降级为纯文本总结")
+                        try:
+                            response = self._do_create(messages)
+                            self._accumulate_usage(response)
+                            return response
+                        except Exception as fallback_exc:
+                            last_exc = fallback_exc
+                            exc = fallback_exc
+
                 if attempt == self._max_retry_attempts - 1 or not self._is_retryable_error(exc):
                     raise
                 sleep_seconds = self._retry_base_backoff * (2 ** attempt)
@@ -286,6 +345,7 @@ class UniversalGPT(GPT):
 
     def summarize(self, source: GPTSource) -> str:
         self.total_tokens = 0
+        self.vision_fallback_used = False
         self.screenshot = source.screenshot
         self.link = source.link
         source.segment = self.ensure_segments_type(source.segment)

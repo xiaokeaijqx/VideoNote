@@ -8,6 +8,11 @@ modelService = ModelService()
 class CreateModelRequest(BaseModel):
     provider_id: str
     model_name: str
+    supports_multimodal: bool = False
+
+
+class UpdateModelCapabilitiesRequest(BaseModel):
+    supports_multimodal: bool = False
 
 # 返回体：模型信息
 class ModelItem(BaseModel):
@@ -37,10 +42,28 @@ def model_list(provider_id):
 
 @router.post("/models")
 def create_model(data: CreateModelRequest):
-    success = ModelService.add_new_model(data.provider_id, data.model_name)
+    success = ModelService.add_new_model(
+        data.provider_id,
+        data.model_name,
+        supports_multimodal=data.supports_multimodal,
+    )
     if not success:
         return R.error("模型添加失败")
     return R.success(msg="模型添加成功")
+
+
+@router.post("/models/{model_id}/capabilities")
+def update_model_capabilities(model_id: int, data: UpdateModelCapabilitiesRequest):
+    try:
+        model = ModelService.update_model_capabilities(
+            model_id,
+            supports_multimodal=data.supports_multimodal,
+        )
+        if not model:
+            return R.error("模型不存在或更新失败")
+        return R.success(model, msg="模型能力更新成功")
+    except Exception as e:
+        return R.error(f"模型能力更新失败: {e}")
 
 @router.get("/model_enable/{provider_id}")
 def get_enabled_models_by_provider(provider_id: str):

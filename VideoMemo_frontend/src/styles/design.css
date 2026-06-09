@@ -192,6 +192,7 @@ body[data-theme='mono'] {
   display: grid;
   grid-template-columns: 248px 1fr;
   height: 100vh;
+  min-height: 0;
   overflow: hidden;
   background: var(--vm-bg);
 }
@@ -343,6 +344,8 @@ body[data-theme='mono'] {
 .vm-main {
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  min-height: 0;
   overflow: hidden;
   background: var(--vm-bg);
 }
@@ -380,6 +383,8 @@ body[data-theme='mono'] {
 
 .vm-content {
   flex: 1;
+  min-height: 0;
+  min-width: 0;
   overflow-y: auto;
 }
 .vm-content-inner {
@@ -1095,6 +1100,8 @@ body[data-theme='mono'] {
   display: grid;
   grid-template-columns: 268px 1fr;
   height: 100%;
+  min-width: 0;
+  min-height: 0;
   overflow: hidden;
 }
 .vm-note-rail {
@@ -1102,6 +1109,7 @@ body[data-theme='mono'] {
   background: var(--vm-surface);
   display: flex;
   flex-direction: column;
+  min-height: 0;
   overflow: hidden;
 }
 .vm-note-rail-head {
@@ -1132,6 +1140,7 @@ body[data-theme='mono'] {
 }
 .vm-note-list {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 6px 10px 16px;
   display: flex;
@@ -1258,6 +1267,9 @@ body[data-theme='mono'] {
 }
 
 .vm-reader {
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
   overflow-y: auto;
 }
 .vm-reader-inner {
@@ -1275,10 +1287,13 @@ body[data-theme='mono'] {
 .vm-note-result-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+  grid-template-rows: minmax(0, 1fr);
   gap: 12px;
   height: 100%;
+  min-height: 0;
   min-width: 0;
   width: 100%;
+  overflow: hidden;
   padding: 0 8px;
 }
 .vm-note-result-grid.without-transcript {
@@ -1286,7 +1301,9 @@ body[data-theme='mono'] {
 }
 .vm-note-main-scroll {
   height: 100%;
+  min-height: 0;
   min-width: 0;
+  overflow: hidden;
 }
 
 .vm-note-outline-bar {
@@ -1364,12 +1381,15 @@ body[data-theme='mono'] {
 }
 .vm-transcript-pane {
   height: 100%;
+  min-height: 0;
   min-width: 0;
+  overflow: hidden;
   padding-right: 2px;
 }
 .vm-transcript-pane .transcript-viewer {
   border-color: var(--vm-border);
   box-shadow: none;
+  min-height: 0;
 }
 @media (max-width: 1180px) {
   .vm-note-result-grid {

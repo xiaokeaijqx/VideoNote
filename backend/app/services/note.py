@@ -15,6 +15,7 @@ from app.downloaders.bilibili_downloader import BilibiliDownloader
 from app.downloaders.douyin_downloader import DouyinDownloader
 from app.downloaders.local_downloader import LocalDownloader
 from app.downloaders.youtube_downloader import YoutubeDownloader
+from app.db.model_dao import get_model_by_provider_and_name
 from app.db.video_task_dao import delete_task_by_video, insert_video_task
 from app.enmus.exception import NoteErrorEnum, ProviderErrorEnum
 from app.enmus.task_status_enums import TaskStatus
@@ -35,7 +36,7 @@ from app.transcriber.transcriber_provider import get_transcriber, _transcribers
 from app.utils.cover_helper import localize_cover
 from app.utils.note_helper import replace_content_markers, prepend_source_link, normalize_toc
 from app.utils.path_helper import get_runtime_dir
-from app.utils.screenshot_marker import extract_screenshot_timestamps
+from app.utils.screenshot_marker import extract_screenshot_timestamps, remove_screenshot_markers
 from app.utils.status_code import StatusCode
 from app.utils.video_helper import generate_screenshot
 from app.utils.video_reader import VideoReader
@@ -213,6 +214,17 @@ class NoteGenerator:
 
             downloader = self._get_downloader(platform)
             gpt = self._get_gpt(model_name, provider_id)
+            _format = list(_format or [])
+
+            if not self._model_supports_multimodal(provider_id, model_name):
+                if screenshot or video_understanding or "screenshot" in _format:
+                    logger.info(
+                        f"模型未配置为多模态，自动关闭截图/视频理解 "
+                        f"(task_id={task_id}, model={model_name})"
+                    )
+                screenshot = False
+                video_understanding = False
+                _format = [item for item in _format if item != "screenshot"]
 
             # 缓存文件路径
             audio_cache_file = NOTE_OUTPUT_DIR / f"{task_id}_audio.json"
@@ -332,12 +344,21 @@ class NoteGenerator:
                 video_img_urls=self.video_img_urls,
             )
 
+            formats_for_post_process = list(_format or [])
+            if getattr(gpt, "vision_fallback_used", False):
+                markdown = remove_screenshot_markers(markdown)
+                markdown_cache_file.write_text(markdown, encoding="utf-8")
+                formats_for_post_process = [
+                    item for item in formats_for_post_process if item != "screenshot"
+                ]
+                logger.info(f"模型不支持图片输入，已自动关闭截图后处理 (task_id={task_id})")
+
             # 4. 截图 & 链接替换
-            if _format:
+            if formats_for_post_process:
                 markdown = self._post_process_markdown(
                     markdown=markdown,
                     video_path=self.video_path,
-                    formats=_format,
+                    formats=formats_for_post_process,
                     audio_meta=audio_meta,
                     platform=platform,
                 )
@@ -436,6 +457,17 @@ class NoteGenerator:
             name=provider["name"],
         )
         return GPTFactory().from_config(config)
+
+    @staticmethod
+    def _model_supports_multimodal(provider_id: Optional[str], model_name: Optional[str]) -> bool:
+        if not provider_id or not model_name:
+            return False
+        try:
+            model = get_model_by_provider_and_name(int(provider_id), model_name)
+            return bool(model and model.get("supports_multimodal"))
+        except Exception as exc:
+            logger.warning(f"读取模型多模态配置失败，默认关闭：provider_id={provider_id} model={model_name} err={exc}")
+            return False
 
     def _get_downloader(self, platform: str) -> Downloader:
         """

@@ -5,7 +5,8 @@ import {
   addModel,
   fetchEnableModels,
   fetchEnableModelById,
-  deleteModelById
+  deleteModelById,
+  updateModelCapabilities,
 } from '@/services/model'
 
 interface IModel {
@@ -15,12 +16,14 @@ interface IModel {
   owned_by: string
   permission: string
   root: string
+  supports_multimodal?: boolean
 }
 
 interface IModelListItem {
   id: string
   provider_id: string
   model_name: string
+  supports_multimodal?: boolean
   created_at?: string
 }
 
@@ -33,7 +36,8 @@ interface ModelStore {
   loadModels: (providerId: string) => Promise<void>
   loadModelsById: (providerId: string) => Promise<IModelListItem[]>
   loadEnabledModels: () => Promise<void>
-  addNewModel: (providerId: string, modelId: string) => Promise<void>
+  addNewModel: (providerId: string, modelId: string, supportsMultimodal?: boolean) => Promise<void>
+  updateModelCapability: (modelId: number, supportsMultimodal: boolean) => Promise<void>
   deleteModel: (modelId: number) => Promise<void>
   setSelectedModel: (modelId: string) => void
   clearModels: () => void
@@ -100,8 +104,23 @@ export const useModelStore = create<ModelStore>()(
     //  注意：request 拦截器成功时已把响应解包成 data 并在业务失败时 reject，
     //  所以这里 resolve 即保存成功；失败必须把错误抛给调用方（由组件统一弹 toast），
     //  之前在这里吞掉异常导致组件永远弹「保存成功」+ 拦截器红 toast 同时出现。
-    addNewModel: async (providerId: string, modelId: string) => {
-      await addModel({ provider_id: providerId, model_name: modelId }, { silent: true })
+    addNewModel: async (providerId: string, modelId: string, supportsMultimodal = false) => {
+      await addModel(
+        {
+          provider_id: providerId,
+          model_name: modelId,
+          supports_multimodal: supportsMultimodal,
+        },
+        { silent: true }
+      )
+    },
+
+    updateModelCapability: async (modelId: number, supportsMultimodal: boolean) => {
+      await updateModelCapabilities(
+        modelId,
+        { supports_multimodal: supportsMultimodal },
+        { silent: true }
+      )
     },
 
     //  删除模型

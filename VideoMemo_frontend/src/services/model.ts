@@ -32,10 +32,18 @@ export const fetchEnableModelById = async (id: string) => {
 }
 
 export async function addModel(
-  data: { provider_id: string; model_name: string },
+  data: { provider_id: string; model_name: string; supports_multimodal?: boolean },
   opts?: CallOpts,
 ) {
   return request.post('/models', data, cfg(opts))
+}
+
+export async function updateModelCapabilities(
+  modelId: number,
+  data: { supports_multimodal: boolean },
+  opts?: CallOpts,
+) {
+  return request.post(`/models/${modelId}/capabilities`, data, cfg(opts))
 }
 
 export const fetchEnableModels = async () => {

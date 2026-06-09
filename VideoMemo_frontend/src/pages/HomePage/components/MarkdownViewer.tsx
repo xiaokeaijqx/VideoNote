@@ -964,7 +964,7 @@ const MarkdownViewer: FC<MarkdownViewerProps> = memo(({ status }) => {
 
   if (status === 'idle') {
     return (
-      <div className="flex h-screen w-full flex-col items-center justify-center space-y-3 text-neutral-500">
+      <div className="flex h-full min-h-0 w-full flex-col items-center justify-center space-y-3 text-neutral-500">
         <Idle />
         <div className="text-center">
           <p className="text-lg font-bold">输入视频链接并点击"生成笔记"</p>
@@ -976,7 +976,7 @@ const MarkdownViewer: FC<MarkdownViewerProps> = memo(({ status }) => {
 
   if (status === 'failed' && !isMultiVersion) {
     return (
-      <div className="flex h-screen w-full flex-col items-center justify-center gap-4 space-y-3">
+      <div className="flex h-full min-h-0 w-full flex-col items-center justify-center gap-4 space-y-3">
         <Error />
         <div className="text-center">
           <p className="text-lg font-bold text-red-500">笔记生成失败</p>
@@ -991,7 +991,7 @@ const MarkdownViewer: FC<MarkdownViewerProps> = memo(({ status }) => {
   }
 
   return (
-    <div className="flex h-screen w-full flex-col overflow-hidden">
+    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden">
       <MarkdownHeader
         currentTask={currentTask}
         isMultiVersion={isMultiVersion}
@@ -1014,7 +1014,7 @@ const MarkdownViewer: FC<MarkdownViewerProps> = memo(({ status }) => {
       />
 
       {viewMode === 'map' ? (
-        <div className="flex w-full flex-1 overflow-hidden bg-white">
+        <div className="flex min-h-0 w-full flex-1 overflow-hidden bg-white">
           <div className={'w-full'}>
             <MarkmapEditor
               value={selectedContent}
@@ -1025,7 +1025,7 @@ const MarkdownViewer: FC<MarkdownViewerProps> = memo(({ status }) => {
           </div>
         </div>
       ) : (
-        <div className="flex flex-1 overflow-hidden bg-white py-2">
+        <div className="flex min-h-0 flex-1 overflow-hidden bg-white py-2">
           {selectedContent && selectedContent !== 'loading' && selectedContent !== 'empty' ? (
             <>
               {showChat === 'full' && currentTask ? (
@@ -1035,7 +1035,7 @@ const MarkdownViewer: FC<MarkdownViewerProps> = memo(({ status }) => {
               ) : (
                 <>
                   {editing ? (
-                    <div className="flex min-w-0 flex-1 flex-col">
+                    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
                       <div className="flex items-center justify-between border-b bg-neutral-50/50 px-3 py-2">
                         <span className="text-sm font-medium text-gray-700">
                           编辑笔记 · 保存后会作为新版本追加
@@ -1065,7 +1065,7 @@ const MarkdownViewer: FC<MarkdownViewerProps> = memo(({ status }) => {
                           </Button>
                         </div>
                       </div>
-                      <div className="flex-1 overflow-hidden" data-color-mode="light">
+                      <div className="min-h-0 flex-1 overflow-hidden" data-color-mode="light">
                         <MDEditor
                           value={editorValue}
                           onChange={v => setEditorValue(v ?? '')}
