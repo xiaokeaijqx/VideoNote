@@ -14,7 +14,7 @@ def _serialize_model(model: Model):
     }
 
 
-def get_model_by_provider_and_name(provider_id: int, model_name: str):
+def get_model_by_provider_and_name(provider_id: str, model_name: str):
     db = next(get_db())
     try:
         model = db.query(Model).filter_by(provider_id=provider_id, model_name=model_name).first()
@@ -25,7 +25,7 @@ def get_model_by_provider_and_name(provider_id: int, model_name: str):
         db.close()
 
 
-def insert_model(provider_id: int, model_name: str, supports_multimodal: bool = False):
+def insert_model(provider_id: str, model_name: str, supports_multimodal: bool = False):
     db = next(get_db())
     try:
         model = Model(
@@ -41,7 +41,7 @@ def insert_model(provider_id: int, model_name: str, supports_multimodal: bool = 
         db.close()
 
 
-def get_models_by_provider(provider_id: int):
+def get_models_by_provider(provider_id: str):
     db = next(get_db())
     try:
         models = db.query(Model).filter_by(provider_id=provider_id).all()

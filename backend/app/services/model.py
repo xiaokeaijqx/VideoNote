@@ -30,7 +30,7 @@ class ModelService:
         )
 
     @staticmethod
-    def get_model_list(provider_id: int, verbose: bool = False):
+    def get_model_list(provider_id: str, verbose: bool = False):
         provider = ProviderService.get_provider_by_id(provider_id)
         if not provider:
             return []
@@ -244,7 +244,7 @@ class ModelService:
             print(f"[{model_id}] <UNK>: {e}")
             return False
     @staticmethod
-    def add_new_model(provider_id: int, model_name: str, supports_multimodal: bool = False) -> bool:
+    def add_new_model(provider_id: str, model_name: str, supports_multimodal: bool = False) -> bool:
         try:
             # 先查供应商是否存在
             provider = ProviderService.get_provider_by_id(provider_id)

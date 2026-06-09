@@ -484,7 +484,7 @@ class NoteGenerator:
         if not provider_id or not model_name:
             return False
         try:
-            model = get_model_by_provider_and_name(int(provider_id), model_name)
+            model = get_model_by_provider_and_name(str(provider_id), model_name)
             return bool(model and model.get("supports_multimodal"))
         except Exception as exc:
             logger.warning(f"读取模型多模态配置失败，默认关闭：provider_id={provider_id} model={model_name} err={exc}")
