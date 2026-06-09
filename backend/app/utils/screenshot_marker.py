@@ -46,5 +46,5 @@ def ensure_screenshot_markers(markdown: str, duration: float | int | None, max_m
         if ts not in unique_timestamps:
             unique_timestamps.append(ts)
 
-    marker_block = "\n".join(f"*Screenshot-[{_format_seconds(ts)}]" for ts in unique_timestamps)
+    marker_block = "\n\n".join(f"*Screenshot-[{_format_seconds(ts)}]" for ts in unique_timestamps)
     return f"{markdown.rstrip()}\n\n## 关键画面\n\n{marker_block}\n"

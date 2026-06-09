@@ -49,3 +49,10 @@ def test_ensure_screenshot_markers_adds_keyframes_when_model_omits_markers():
     assert "*Screenshot-[00:25]" in result
     assert "*Screenshot-[00:50]" in result
     assert "*Screenshot-[01:15]" in result
+
+
+def test_ensure_screenshot_markers_separates_keyframes_as_markdown_blocks():
+    result = ensure_screenshot_markers("## A\n\n正文", duration=100)
+
+    assert "*Screenshot-[00:25]\n\n*Screenshot-[00:50]" in result
+    assert "*Screenshot-[00:50]\n\n*Screenshot-[01:15]" in result

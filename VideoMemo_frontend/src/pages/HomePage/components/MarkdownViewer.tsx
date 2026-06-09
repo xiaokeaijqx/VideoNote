@@ -114,6 +114,10 @@ function safeDownloadName(name: string | undefined, fallback: string) {
 const remarkPlugins = [gfm, remarkMath]
 const rehypePlugins = [rehypeKatex, rehypeSlug]
 
+function normalizeMarkdownImageBlocks(markdown: string): string {
+  return markdown.replace(/(!\[[^\]]*]\([^)]+\))\n(?=!\[[^\]]*]\([^)]+\))/g, '$1\n\n')
+}
+
 function getMarkdownChildrenText(children: any): string {
   if (children == null || typeof children === 'boolean') return ''
   if (typeof children === 'string' || typeof children === 'number') return String(children)
@@ -300,12 +304,10 @@ function createMarkdownComponents(
               {...props}
               alt=""
               referrerPolicy="no-referrer"
-              crossOrigin="anonymous"
-              className="max-w-full cursor-zoom-in rounded-lg object-cover shadow-md transition-all hover:shadow-lg"
-              style={{ maxHeight: '500px' }}
+              className="max-w-full cursor-zoom-in rounded-lg object-contain shadow-md transition-all hover:shadow-lg"
+              style={{ maxHeight: '500px', width: 'auto' }}
               onError={e => {
-                // 图片加载失败时直接隐藏，避免破图占位 + alt 文字泄露
-                ;(e.currentTarget as HTMLImageElement).style.display = 'none'
+                ;(e.currentTarget as HTMLImageElement).style.opacity = '0.35'
               }}
             />
           </Zoom>
@@ -1121,7 +1123,9 @@ const MarkdownViewer: FC<MarkdownViewerProps> = memo(({ status }) => {
                             rehypePlugins={rehypePlugins}
                             components={markdownComponents}
                           >
-                            {selectedContent.replace(/^>\s*来源链接：[^\n]*\n*/m, '')}
+                            {normalizeMarkdownImageBlocks(
+                              selectedContent.replace(/^>\s*来源链接：[^\n]*\n*/m, '')
+                            )}
                           </ReactMarkdown>
                         </div>
                       </ScrollArea>
