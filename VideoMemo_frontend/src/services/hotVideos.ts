@@ -7,6 +7,11 @@ export type HotVideoPlatform =
   | 'douyin'
   | 'kuaishou'
   | 'xiaohongshu'
+  | 'weibo'
+  | 'zhihu'
+  | 'baidu'
+  | '36kr'
+  | 'ithome'
 
 export type HotVideoItemPlatform = Exclude<HotVideoPlatform, 'all'>
 export type HotVideoStatus = 'ok' | 'error' | 'unavailable'

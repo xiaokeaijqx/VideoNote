@@ -11,8 +11,6 @@ import {
   Pause as PauseIcon,
   Play,
   Plus,
-  RotateCcw,
-  Save,
   Sparkles,
   Upload,
   X as XIcon,
@@ -37,13 +35,6 @@ import { Segmented } from '@/components/design/Segmented'
 import { VmSelect } from '@/components/design/VmSelect'
 import { GenHero, Spinner } from '@/components/design/animations'
 import { useVmLang, trVm } from '@/i18n/redesign'
-import {
-  getDefaultPromptTemplate,
-  loadPromptTemplates,
-  resetPromptTemplate,
-  savePromptTemplate,
-} from '@/utils/promptTemplates'
-import { disableVisionFormats } from '@/utils/modelCapabilities'
 
 const QUALITIES = [
   { value: 'fast', zh: '快速', en: 'Fast' },
@@ -84,7 +75,6 @@ interface NoteDraft {
   cols?: number
   rows?: number
   extras?: string
-  promptTemplateId?: string
 }
 function loadDraft(): NoteDraft {
   try {
@@ -131,8 +121,6 @@ const NewNoteRedesigned: FC = () => {
   const [cols, setCols] = useState(draft.cols ?? 2)
   const [rows, setRows] = useState(draft.rows ?? 2)
   const [extras, setExtras] = useState(draft.extras ?? '')
-  const [promptTemplateId, setPromptTemplateId] = useState(draft.promptTemplateId ?? 'technical')
-  const [promptTemplates, setPromptTemplates] = useState(() => loadPromptTemplates())
   const [isUploading, setIsUploading] = useState(false)
   const [uploadOk, setUploadOk] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -166,7 +154,6 @@ const NewNoteRedesigned: FC = () => {
           cols,
           rows,
           extras,
-          promptTemplateId,
         })
       )
     } catch {
@@ -185,7 +172,6 @@ const NewNoteRedesigned: FC = () => {
     cols,
     rows,
     extras,
-    promptTemplateId,
   ])
 
   useEffect(() => {
@@ -203,18 +189,6 @@ const NewNoteRedesigned: FC = () => {
     if (!modelName && modelList[0]?.model_name) setModelName(modelList[0].model_name)
   }, [modelList, modelName])
 
-  const selectedModelConfig = useMemo(
-    () => modelList.find((model: any) => model.model_name === modelName),
-    [modelList, modelName]
-  )
-  const modelSupportsVision = Boolean((selectedModelConfig as any)?.supports_multimodal)
-
-  useEffect(() => {
-    if (!modelName || modelSupportsVision) return
-    setVision(false)
-    setFormats(f => disableVisionFormats(f))
-  }, [modelName, modelSupportsVision])
-
   useEffect(() => {
     if (!url || (platform === 'local' && touchedPf)) return
     const detected = detectPlatform(url)
@@ -228,34 +202,9 @@ const NewNoteRedesigned: FC = () => {
   }, [customPlatformList])
 
   const detectedShow = !!detectPlatform(url)
-  const screenshotDisabled = !!modelName && !modelSupportsVision
-  const effectiveFormats = modelSupportsVision ? formats : disableVisionFormats(formats)
-  const effectiveVision = modelSupportsVision && vision
-  const screenshotEnabled = effectiveFormats.includes('screenshot')
-  const toggleFmt = (v: string) => {
-    if (v === 'screenshot' && screenshotDisabled) return
+  const screenshotEnabled = formats.includes('screenshot')
+  const toggleFmt = (v: string) =>
     setFormats(f => (f.includes(v) ? f.filter(x => x !== v) : [...f, v]))
-  }
-  const currentPromptTemplate = promptTemplates.find(template => template.id === promptTemplateId)
-  const applyPromptTemplate = () => {
-    if (!currentPromptTemplate) return
-    setExtras(currentPromptTemplate.prompt)
-    toast.success(trVm('promptTemplateApplied', lang))
-  }
-  const handleSavePromptTemplate = () => {
-    if (!currentPromptTemplate) return
-    savePromptTemplate(currentPromptTemplate.id, extras)
-    setPromptTemplates(loadPromptTemplates())
-    toast.success(trVm('promptTemplateSaved', lang))
-  }
-  const handleResetPromptTemplate = () => {
-    if (!currentPromptTemplate) return
-    resetPromptTemplate(currentPromptTemplate.id)
-    const defaults = getDefaultPromptTemplate(currentPromptTemplate.id)
-    setPromptTemplates(loadPromptTemplates())
-    if (defaults) setExtras(defaults.prompt)
-    toast.success(trVm('promptTemplateReset', lang))
-  }
 
   const handleFileUpload = async (file: File) => {
     const fd = new FormData()
@@ -302,12 +251,12 @@ const NewNoteRedesigned: FC = () => {
       quality,
       model_name: modelName,
       provider_id: (model as any).provider_id,
-      format: effectiveFormats,
-      link: effectiveFormats.includes('link'),
-      screenshot: effectiveFormats.includes('screenshot'),
+      format: formats,
+      link: formats.includes('link'),
+      screenshot: formats.includes('screenshot'),
       style,
       extras,
-      video_understanding: effectiveVision,
+      video_understanding: vision,
       // 采样间隔留空时兜底为默认 30 秒
       video_interval: intervalSec === '' ? 30 : intervalSec,
       grid_size: [cols, rows] as [number, number],
@@ -579,10 +528,8 @@ const NewNoteRedesigned: FC = () => {
         >
           <div className="vm-chip-row">
             {noteFormats.map(f => {
-              const disabled =
-                (f.value === 'link' && platform === 'local') ||
-                (f.value === 'screenshot' && screenshotDisabled)
-              const on = effectiveFormats.includes(f.value)
+              const disabled = f.value === 'link' && platform === 'local'
+              const on = formats.includes(f.value)
               return (
                 <Chip key={f.value} on={on} disabled={disabled} onClick={() => toggleFmt(f.value)}>
                   <span
@@ -614,10 +561,7 @@ const NewNoteRedesigned: FC = () => {
         <div className="vm-row" style={{ justifyContent: 'space-between' }}>
           <div className="vm-row" style={{ gap: 11 }}>
             <span
-              style={{
-                color: effectiveVision ? 'var(--vm-primary)' : 'var(--vm-faint)',
-                display: 'grid',
-              }}
+              style={{ color: vision ? 'var(--vm-primary)' : 'var(--vm-faint)', display: 'grid' }}
             >
               <ImageIcon size={19} />
             </span>
@@ -626,21 +570,9 @@ const NewNoteRedesigned: FC = () => {
               <div className="vm-field-hint">{trVm('videoUndHint', lang)}</div>
             </div>
           </div>
-          <Toggle
-            on={effectiveVision}
-            disabled={screenshotDisabled}
-            onClick={() => setVision(v => !v)}
-          />
+          <Toggle on={vision} onClick={() => setVision(v => !v)} />
         </div>
-        {screenshotDisabled && (
-          <div
-            className="vm-badge vm-badge-warn vm-fade-up"
-            style={{ marginTop: 14, borderRadius: 'var(--vm-radius-sm)', padding: '9px 13px' }}
-          >
-            <Bot size={15} /> {trVm('visionDisabled', lang)}
-          </div>
-        )}
-        {effectiveVision && (
+        {vision && (
           <div className="vm-fade-up" style={{ marginTop: 16 }}>
             <div className="vm-grid-2">
               <Field label={trVm('interval', lang)}>
@@ -698,33 +630,6 @@ const NewNoteRedesigned: FC = () => {
 
       {/* Extras */}
       <div className="vm-card vm-card-pad" style={{ marginBottom: 22 }}>
-        <Field
-          label={trVm('promptTemplate', lang)}
-          en={lang === 'zh' ? 'Prompt template' : 'Prompt 模板'}
-          hint={currentPromptTemplate?.description}
-        >
-          <div className="vm-prompt-template-row">
-            <VmSelect
-              value={promptTemplateId}
-              onChange={setPromptTemplateId}
-              options={promptTemplates.map(template => ({
-                value: template.id,
-                label: template.label,
-              }))}
-            />
-            <button className="vm-btn vm-btn-outline vm-btn-sm" onClick={applyPromptTemplate}>
-              <Sparkles size={15} /> {trVm('applyPromptTemplate', lang)}
-            </button>
-          </div>
-          <div className="vm-prompt-template-actions">
-            <button className="vm-tool-btn" onClick={handleSavePromptTemplate}>
-              <Save size={14} /> {trVm('savePromptTemplate', lang)}
-            </button>
-            <button className="vm-tool-btn" onClick={handleResetPromptTemplate}>
-              <RotateCcw size={14} /> {trVm('resetPromptTemplate', lang)}
-            </button>
-          </div>
-        </Field>
         <Field label={trVm('notes', lang)} en={lang === 'zh' ? 'Optional' : '可选'}>
           <textarea
             className="vm-textarea"

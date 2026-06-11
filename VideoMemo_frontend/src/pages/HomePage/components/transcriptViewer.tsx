@@ -1,9 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Captions, Copy, Download } from 'lucide-react'
+import { Captions, ChevronsRight, Copy, Download } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { ScrollArea } from '@/components/ui/scroll-area.tsx'
 import { cn } from '@/lib/utils'
 import { useTaskStore } from '@/store/taskStore'
 import { groupTranscriptSegments } from '@/utils/transcriptSegments'
@@ -28,9 +27,10 @@ interface Task {
 interface TranscriptViewerProps {
   activeTime?: number | null
   onSegmentClick?: (segment: Segment) => void
+  onCollapse?: () => void
 }
 
-const TranscriptViewer = ({ activeTime, onSegmentClick }: TranscriptViewerProps) => {
+const TranscriptViewer = ({ activeTime, onSegmentClick, onCollapse }: TranscriptViewerProps) => {
   const task = useTaskStore(state => state.getCurrentTask()) as Task | null
   const [activeSegment, setActiveSegment] = useState<number | null>(null)
   const segmentRefs = useRef<(HTMLDivElement | null)[]>([])
@@ -90,6 +90,16 @@ const TranscriptViewer = ({ activeTime, onSegmentClick }: TranscriptViewerProps)
 
   return (
     <div className="transcript-viewer flex h-full w-full flex-col rounded-md border bg-white p-4 shadow-sm">
+      {onCollapse && (
+        <button
+          type="button"
+          className="vm-transcript-collapse-btn"
+          title="收起字幕"
+          onClick={onCollapse}
+        >
+          <ChevronsRight className="h-4 w-4" />
+        </button>
+      )}
       <div className="mb-4 flex items-center gap-2">
         <span className="grid h-8 w-8 place-items-center rounded-md bg-neutral-100 text-neutral-700">
           <Captions className="h-4 w-4" />
@@ -125,11 +135,11 @@ const TranscriptViewer = ({ activeTime, onSegmentClick }: TranscriptViewerProps)
         </div>
       ) : (
         <>
-          <div className="text-muted-foreground mb-3 grid grid-cols-[72px_1fr] gap-2 border-b pb-2 text-xs font-medium">
+          <div className="text-muted-foreground mb-3 grid grid-cols-[56px_1fr] gap-2 border-b pb-2 text-xs font-medium">
             <div>时间</div>
             <div>内容</div>
           </div>
-          <ScrollArea className="min-h-0 w-full flex-1">
+          <div className="transcript-scroll min-h-0 w-full flex-1">
             <div className="space-y-1 pr-2">
               {subtitleSegments.map((segment, index) => (
                 <div
@@ -138,7 +148,7 @@ const TranscriptViewer = ({ activeTime, onSegmentClick }: TranscriptViewerProps)
                     segmentRefs.current[index] = el
                   }}
                   className={cn(
-                    'group grid cursor-pointer grid-cols-[72px_1fr] gap-2 rounded-md p-2 transition-colors hover:bg-slate-50',
+                    'group grid cursor-pointer grid-cols-[56px_1fr] gap-2 rounded-md p-2 transition-colors hover:bg-slate-50',
                     activeSegment === index && 'bg-slate-100'
                   )}
                   onClick={() => handleSegmentClick(index)}
@@ -158,7 +168,7 @@ const TranscriptViewer = ({ activeTime, onSegmentClick }: TranscriptViewerProps)
                 </div>
               ))}
             </div>
-          </ScrollArea>
+          </div>
         </>
       )}
 

@@ -48,6 +48,8 @@ interface NoteHeaderProps {
   setViewMode: (mode: 'map' | 'preview') => void
   showChat?: false | 'half' | 'full'
   setShowChat?: (mode: false | 'half' | 'full') => void
+  showTranscript?: boolean
+  setShowTranscript?: (show: boolean) => void
   /** Phase 3: 多版本编辑/润色 */
   onEdit?: () => void
   onRepolish?: () => void
@@ -119,6 +121,8 @@ export function MarkdownHeader({
   createAt,
   showChat,
   setShowChat,
+  showTranscript,
+  setShowTranscript,
   viewMode,
   setViewMode,
   onEdit,
@@ -283,6 +287,24 @@ export function MarkdownHeader({
             <TooltipContent>思维导图</TooltipContent>
           </Tooltip>
         </TooltipProvider>
+        {setShowTranscript && (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  onClick={() => setShowTranscript(!showTranscript)}
+                  variant={showTranscript ? 'secondary' : 'ghost'}
+                  size="sm"
+                  className="h-8 px-2"
+                >
+                  <Captions className="mr-1.5 h-4 w-4" />
+                  <span className="text-sm">字幕</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{showTranscript ? '收起字幕侧栏' : '展开字幕侧栏'}</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
         {onEdit && (
           <TooltipProvider>
             <Tooltip>

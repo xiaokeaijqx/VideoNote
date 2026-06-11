@@ -7,6 +7,7 @@ import { useCollectionStore } from '@/store/collectionStore'
 import { NoteThumb } from '@/components/design/NoteThumb'
 import { Pf } from '@/components/design/PlatformAvatar'
 import { StatusBadge } from '@/components/design/StatusBadge'
+import { VmSelect } from '@/components/design/VmSelect'
 import { useVmLang, trVm } from '@/i18n/redesign'
 import ContextMenu, { type ContextMenuItem } from '@/components/ContextMenu'
 import {
@@ -18,6 +19,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import {
+  buildFavoritesCollection,
+  buildUngroupedCollection,
+  type Collection,
+} from '@/store/collectionStore'
 
 interface Props {
   Preview: ReactNode
@@ -40,19 +46,33 @@ const WorkspaceLayout: FC<Props> = ({ Preview }) => {
   const setCollectionNotes = useCollectionStore(s => s.setCollectionNotes)
   const navigate = useNavigate()
   const [q, setQ] = useState('')
+  const [collectionFilter, setCollectionFilter] = useState('all')
   const [pendingDelete, setPendingDelete] = useState<string | null>(null)
   const [menu, setMenu] = useState<{ x: number; y: number; taskId: string } | null>(null)
+
+  const collectionFilters = useMemo((): Array<Pick<Collection, 'id' | 'name' | 'noteIds'>> => {
+    const successIds = tasks.filter(t => t.status === 'SUCCESS').map(t => t.id)
+    return [
+      { id: 'all', name: lang === 'zh' ? '全部笔记' : 'All notes', noteIds: tasks.map(t => t.id) },
+      buildFavoritesCollection(favoriteNoteIds, tasks.map(t => t.id)),
+      buildUngroupedCollection(successIds, collections),
+      ...collections,
+    ]
+  }, [collections, favoriteNoteIds, lang, tasks])
 
   const filtered = useMemo(() => {
     const kw = q.trim().toLowerCase()
     const sorted = [...tasks].sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
-    if (!kw) return sorted
+    const selected = collectionFilters.find(c => c.id === collectionFilter)
+    const allowed = selected && selected.id !== 'all' ? new Set(selected.noteIds) : null
     return sorted.filter(t => {
+      if (allowed && !allowed.has(t.id)) return false
+      if (!kw) return true
       const title = (t.audioMeta as { title?: string })?.title || ''
       const url = t.formData?.video_url || ''
       return title.toLowerCase().includes(kw) || url.toLowerCase().includes(kw)
     })
-  }, [tasks, q])
+  }, [collectionFilter, collectionFilters, q, tasks])
 
   const handleNew = () => setCurrentTask(null)
   const handleSelect = (id: string) => setCurrentTask(id)
@@ -153,6 +173,16 @@ const WorkspaceLayout: FC<Props> = ({ Preview }) => {
               onChange={e => setQ(e.target.value)}
             />
           </div>
+          <VmSelect
+            className="vm-note-filter-select"
+            value={collectionFilter}
+            onChange={setCollectionFilter}
+            options={collectionFilters.map(c => ({
+              value: c.id,
+              label: `${c.name} (${c.noteIds.length})`,
+            }))}
+            renderOption={o => <span className="truncate">{o.label ?? o.value}</span>}
+          />
         </div>
         <div className="vm-note-list">
           {filtered.length === 0 ? (
@@ -209,7 +239,7 @@ const WorkspaceLayout: FC<Props> = ({ Preview }) => {
                       onClick={e => {
                         e.stopPropagation()
                         const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
-                        setMenu({ x: r.right + 4, y: r.top, taskId: t.id })
+                        setMenu({ x: r.left, y: r.bottom + 6, taskId: t.id })
                       }}
                     >
                       <MoreVertical size={14} strokeWidth={1.5} />

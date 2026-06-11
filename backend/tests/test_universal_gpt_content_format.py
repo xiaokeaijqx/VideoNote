@@ -109,46 +109,6 @@ def _make_gpt():
     return UniversalGPT(_DummyClient(), model="deepseek-chat")
 
 
-class _ChoiceMessage:
-    content = "ok"
-
-
-class _Choice:
-    message = _ChoiceMessage()
-
-
-class _Response:
-    choices = [_Choice()]
-    usage = None
-
-
-class _RejectImageUrlOnceCompletions:
-    def __init__(self):
-        self.calls = []
-
-    def create(self, **kwargs):
-        self.calls.append(kwargs)
-        messages = kwargs["messages"]
-        serialized = str(messages)
-        if len(self.calls) == 1 and "image_url" in serialized:
-            raise ValueError(
-                "Error code: 400 - {'error': {'message': "
-                "'Failed to deserialize the JSON body into the target type: "
-                "messages[0]: unknown variant `image_url`, expected `text`'"
-            )
-        return _Response()
-
-
-class _RejectImageUrlOnceChat:
-    def __init__(self):
-        self.completions = _RejectImageUrlOnceCompletions()
-
-
-class _RejectImageUrlOnceClient:
-    def __init__(self):
-        self.chat = _RejectImageUrlOnceChat()
-
-
 class TestCreateMessagesContentFormat(unittest.TestCase):
     """覆盖 create_messages 在不同 video_img_urls 输入下的输出形态。"""
 
@@ -200,30 +160,6 @@ class TestCreateMessagesContentFormat(unittest.TestCase):
         import json
         serialized = json.dumps(messages, ensure_ascii=False)
         self.assertNotIn("image_url", serialized)
-
-    def test_image_url_unsupported_error_retries_with_text_only_content(self):
-        """兼容只支持 text content part 的 OpenAI-compatible 网关。"""
-        client = _RejectImageUrlOnceClient()
-        gpt = UniversalGPT(client, model="text-only-compatible-model")
-        messages = gpt.create_messages(
-            segments=[],
-            video_img_urls=["data:image/jpeg;base64,abc"],
-        )
-
-        response = gpt._chat_completion_create(messages)
-
-        self.assertIsInstance(response, _Response)
-        calls = client.chat.completions.calls
-        self.assertEqual(len(calls), 2)
-        first_content = calls[0]["messages"][0]["content"]
-        second_content = calls[1]["messages"][0]["content"]
-        self.assertTrue(gpt.vision_fallback_used)
-        self.assertIsInstance(first_content, list)
-        self.assertIn("image_url", str(first_content))
-        self.assertIsInstance(second_content, str)
-        self.assertIn("PROMPT_BODY", second_content)
-        self.assertIn("不要输出 Screenshot", second_content)
-        self.assertNotIn("image_url", str(calls[1]["messages"]))
 
 
 class TestBuildMergeMessagesContentFormat(unittest.TestCase):

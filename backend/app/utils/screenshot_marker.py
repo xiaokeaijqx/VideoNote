@@ -18,14 +18,23 @@ def extract_screenshot_timestamps(markdown: str) -> List[Tuple[str, int]]:
     return results
 
 
-def remove_screenshot_markers(markdown: str) -> str:
-    pattern = r"\*?Screenshot-(?:\[\d{2}:\d{2}\]|\d{2}:\d{2})"
-    return re.sub(pattern, "", markdown)
+def extract_content_timestamps(markdown: str, limit: int = 4) -> List[int]:
+    pattern = r"\*?Content-\[(\d{2}):(\d{2})\]"
+    seen: set[int] = set()
+    results: List[int] = []
+    for match in re.finditer(pattern, markdown):
+        total_seconds = int(match.group(1)) * 60 + int(match.group(2))
+        if total_seconds in seen:
+            continue
+        seen.add(total_seconds)
+        results.append(total_seconds)
+        if len(results) >= limit:
+            break
+    return results
 
 
 def ensure_screenshot_markers(markdown: str, duration: float | int | None, max_markers: int = 3) -> str:
-    """Ensure screenshot post-processing has markers even if the LLM omitted them."""
-    if extract_screenshot_timestamps(markdown):
+    if extract_screenshot_timestamps(markdown) or extract_content_timestamps(markdown, limit=1):
         return markdown
 
     try:
@@ -41,7 +50,7 @@ def ensure_screenshot_markers(markdown: str, duration: float | int | None, max_m
             for ratio in (0.25, 0.5, 0.75)
         ][:max_markers]
 
-    unique_timestamps = []
+    unique_timestamps: List[int] = []
     for ts in timestamps:
         if ts not in unique_timestamps:
             unique_timestamps.append(ts)

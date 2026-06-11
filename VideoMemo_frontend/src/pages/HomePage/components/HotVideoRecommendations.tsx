@@ -157,7 +157,9 @@ const HotVideoRow: FC<{ item: HotVideoItem; onSelect: (item: HotVideoItem) => vo
   onSelect,
 }) => {
   const lang = useVmLang()
+  const [coverFailed, setCoverFailed] = useState(false)
   const meta = [item.author, item.hot_score].filter(Boolean).join(' · ')
+  const coverUrl = item.cover_url?.replace(/^http:\/\//, 'https://')
   return (
     <button
       type="button"
@@ -186,10 +188,12 @@ const HotVideoRow: FC<{ item: HotVideoItem; onSelect: (item: HotVideoItem) => vo
           position: 'relative',
         }}
       >
-        {item.cover_url ? (
+        {coverUrl && !coverFailed ? (
           <img
-            src={item.cover_url}
+            src={coverUrl}
             alt=""
+            referrerPolicy="no-referrer"
+            onError={() => setCoverFailed(true)}
             style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
           />
         ) : (

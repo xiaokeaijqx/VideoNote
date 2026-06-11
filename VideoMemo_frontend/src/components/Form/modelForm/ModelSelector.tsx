@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { useModelStore } from '@/store/modelStore'
 import { Input } from '@/components/ui/input'
 import {
@@ -9,7 +9,6 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
-import { Switch } from '@/components/ui/switch'
 import toast from 'react-hot-toast'
 
 interface ModelSelectorProps {
@@ -23,7 +22,6 @@ export function ModelSelector({ providerId, onSaved }: ModelSelectorProps) {
     useModelStore()
   const [search, setSearch] = useState('')
   const [submitting, setSubmitting] = useState(false)
-  const [supportsMultimodal, setSupportsMultimodal] = useState(false)
 
   const filteredModels = models.filter(model => {
     const keywords = search.trim().toLowerCase().split(/\s+/)
@@ -37,15 +35,6 @@ export function ModelSelector({ providerId, onSaved }: ModelSelectorProps) {
     }
   }, [providerId])
 
-  const selectedModelMeta = useMemo(
-    () => models.find(model => model.id === selectedModel),
-    [models, selectedModel]
-  )
-
-  useEffect(() => {
-    setSupportsMultimodal(Boolean(selectedModelMeta?.supports_multimodal))
-  }, [selectedModelMeta])
-
   const handleSubmit = async () => {
     if (!selectedModel) {
       toast.error('请选择一个模型')
@@ -53,7 +42,7 @@ export function ModelSelector({ providerId, onSaved }: ModelSelectorProps) {
     }
     try {
       setSubmitting(true)
-      await addNewModel(providerId, selectedModel, supportsMultimodal)
+      await addNewModel(providerId, selectedModel)
       // addNewModel 失败会 reject（服务层 silent，不会有拦截器红 toast），
       // 成功/失败只在这里各弹一次，不再出现红绿 toast 同时出现的问题。
       toast.success('保存模型成功 🎉')
@@ -66,7 +55,7 @@ export function ModelSelector({ providerId, onSaved }: ModelSelectorProps) {
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex items-center gap-2">
       <Select value={selectedModel} onValueChange={setSelectedModel}>
         <SelectTrigger className="w-[300px]">
           <SelectValue placeholder={loading ? '加载模型中...' : '请选择模型'} />
@@ -87,15 +76,6 @@ export function ModelSelector({ providerId, onSaved }: ModelSelectorProps) {
           ))}
         </SelectContent>
       </Select>
-
-      <label className="flex items-center gap-2 rounded-md border border-neutral-200 px-2 py-1 text-sm text-neutral-700">
-        <Switch
-          checked={supportsMultimodal}
-          onCheckedChange={setSupportsMultimodal}
-          aria-label="是否支持多模态"
-        />
-        支持多模态
-      </label>
 
       <Button onClick={handleSubmit} disabled={submitting || !selectedModel}>
         {submitting ? '保存中...' : '保存模型'}

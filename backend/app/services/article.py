@@ -148,6 +148,35 @@ class ArticleService:
             self._update_status(task_id, TaskStatus.FAILED)
             raise
 
+    def fetch_only_from_url(self, url: str, platform: str) -> dict:
+        article = self._fetcher(platform).fetch(url)
+        item = upsert_article_item(article)
+        return self._item_payload(item, include_content=True)
+
+    def import_only_content(
+        self,
+        url: str,
+        platform: str,
+        title: str,
+        content_text: str,
+        author_name: str = "",
+    ) -> dict:
+        body = (content_text or "").strip()
+        if len(body) < 20:
+            raise ValueError("导入正文过短")
+        article_id = url or str(uuid.uuid4())
+        article = ArticleContent(
+            platform=platform or "generic_web",
+            url=url or f"manual://{article_id}",
+            article_id=article_id,
+            title=(title or "").strip() or "导入文章",
+            author_name=author_name,
+            content_text=body,
+            raw_metadata={"source": "manual_import"},
+        )
+        item = upsert_article_item(article)
+        return self._item_payload(item, include_content=True)
+
     def search(self, platform: str, keyword: str, limit: int = 20) -> dict:
         articles = self._fetcher(platform).search(keyword, limit)
         items = [upsert_article_item(article) for article in articles]
