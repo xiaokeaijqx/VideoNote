@@ -603,7 +603,7 @@ const NoteForm = ({ onSubmitted }: { onSubmitted?: () => void } = {}) => {
                   onChange={field.onChange}
                   disabledMap={{
                     link: platform === 'local',
-                    screenshot: !videoUnderstandingEnabled,
+                    screenshot: false,
                   }}
                 />
                 <FormMessage />

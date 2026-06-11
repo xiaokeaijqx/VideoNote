@@ -412,7 +412,7 @@ const TaskList: FC = () => {
                             onClick={e => {
                               e.stopPropagation()
                               const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
-                              setMenu({ x: r.right + 4, y: r.top, taskId: t.id })
+                              setMenu({ x: r.left, y: r.bottom + 6, taskId: t.id })
                             }}
                           >
                             <MoreVertical size={16} />

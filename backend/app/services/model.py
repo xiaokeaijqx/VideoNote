@@ -1,12 +1,6 @@
 
 
-from app.db.model_dao import (
-    delete_model,
-    get_all_models,
-    get_model_by_provider_and_name,
-    insert_model,
-    update_model_capabilities,
-)
+from app.db.model_dao import insert_model, get_all_models, get_model_by_provider_and_name, delete_model
 from app.db.provider_dao import get_enabled_providers
 from app.enmus.exception import ProviderErrorEnum
 from app.exceptions.provider import ProviderError
@@ -30,7 +24,7 @@ class ModelService:
         )
 
     @staticmethod
-    def get_model_list(provider_id: str, verbose: bool = False):
+    def get_model_list(provider_id: int, verbose: bool = False):
         provider = ProviderService.get_provider_by_id(provider_id)
         if not provider:
             return []
@@ -77,51 +71,9 @@ class ModelService:
                 "id": model.get("id"),
                 "provider_id": model.get("provider_id"),
                 "model_name": model.get("model_name"),
-                "supports_multimodal": bool(model.get("supports_multimodal", False)),
                 "created_at": model.get("created_at", None),  # 如果有created_at字段
             })
         return formatted
-
-    @staticmethod
-    def detect_multimodal_support(model_data) -> bool:
-        """从远端 /models 元数据中尽量识别是否支持图片输入；无法确认时默认 False。"""
-        if model_data is None:
-            return False
-        if not isinstance(model_data, dict):
-            model_data = ModelService._serialize_remote_model(model_data)
-        if not isinstance(model_data, dict):
-            return False
-
-        positive_keys = ("vision", "visual", "image", "images", "image_input", "multimodal")
-
-        def contains_image_signal(value) -> bool:
-            if isinstance(value, str):
-                lower = value.lower()
-                return any(token in lower for token in ("image", "vision", "visual", "multimodal"))
-            if isinstance(value, (list, tuple, set)):
-                return any(contains_image_signal(item) for item in value)
-            if isinstance(value, dict):
-                for key, nested in value.items():
-                    key_lower = str(key).lower()
-                    if isinstance(nested, bool) and nested and any(token in key_lower for token in positive_keys):
-                        return True
-                    if contains_image_signal(nested):
-                        return True
-            return False
-
-        for key in (
-            "modalities",
-            "input_modalities",
-            "supported_modalities",
-            "capabilities",
-            "features",
-            "supported_inputs",
-            "input",
-        ):
-            if contains_image_signal(model_data.get(key)):
-                return True
-
-        return False
 
     @staticmethod
     def _extract_remote_models(raw_models) -> list:
@@ -139,17 +91,11 @@ class ModelService:
     @staticmethod
     def _serialize_remote_model(model) -> dict:
         if isinstance(model, dict):
-            item = dict(model)
-            item["supports_multimodal"] = ModelService.detect_multimodal_support(item)
-            return item
+            return model
         if hasattr(model, "model_dump"):
-            item = model.model_dump()
-            item["supports_multimodal"] = ModelService.detect_multimodal_support(item)
-            return item
+            return model.model_dump()
         if hasattr(model, "dict"):
-            item = model.dict()
-            item["supports_multimodal"] = ModelService.detect_multimodal_support(item)
-            return item
+            return model.dict()
 
         model_id = getattr(model, "id", None)
         if model_id:
@@ -158,7 +104,6 @@ class ModelService:
                 "object": getattr(model, "object", "model"),
                 "created": getattr(model, "created", None),
                 "owned_by": getattr(model, "owned_by", None),
-                "supports_multimodal": False,
             }
         return {}
 
@@ -244,7 +189,7 @@ class ModelService:
             print(f"[{model_id}] <UNK>: {e}")
             return False
     @staticmethod
-    def add_new_model(provider_id: str, model_name: str, supports_multimodal: bool = False) -> bool:
+    def add_new_model(provider_id: int, model_name: str) -> bool:
         try:
             # 先查供应商是否存在
             provider = ProviderService.get_provider_by_id(provider_id)
@@ -259,23 +204,12 @@ class ModelService:
                 return False
 
             # 插入模型
-            insert_model(
-                provider_id=provider_id,
-                model_name=model_name,
-                supports_multimodal=supports_multimodal,
-            )
+            insert_model(provider_id=provider_id, model_name=model_name)
             print(f"模型 {model_name} 已成功添加到供应商ID {provider_id}")
             return True
         except Exception as e:
             print(f"添加模型失败: {e}")
             return False
-
-    @staticmethod
-    def update_model_capabilities(model_id: int, supports_multimodal: bool):
-        return update_model_capabilities(
-            model_id=model_id,
-            supports_multimodal=supports_multimodal,
-        )
 
 if __name__ == '__main__':
     # 单个 Provider 测试

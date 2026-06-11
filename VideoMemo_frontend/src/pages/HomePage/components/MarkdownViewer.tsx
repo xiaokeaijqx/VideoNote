@@ -15,6 +15,7 @@ import {
   Link as LinkIcon,
   Sparkles,
   ListTree,
+  ChevronLeft,
 } from 'lucide-react'
 import { GenHero, Spinner } from '@/components/design/animations'
 import {
@@ -57,7 +58,6 @@ import rehypeKatex from 'rehype-katex'
 import rehypeSlug from 'rehype-slug'
 import 'katex/dist/katex.min.css'
 import 'github-markdown-css/github-markdown-light.css'
-import { ScrollArea } from '@/components/ui/scroll-area.tsx'
 import { useTaskStore } from '@/store/taskStore'
 import { buildVideoTimestampUrl } from '@/utils/platform'
 import { noteStyles } from '@/constant/note.ts'
@@ -114,10 +114,6 @@ function safeDownloadName(name: string | undefined, fallback: string) {
 const remarkPlugins = [gfm, remarkMath]
 const rehypePlugins = [rehypeKatex, rehypeSlug]
 
-function normalizeMarkdownImageBlocks(markdown: string): string {
-  return markdown.replace(/(!\[[^\]]*]\([^)]+\))\n(?=!\[[^\]]*]\([^)]+\))/g, '$1\n\n')
-}
-
 function getMarkdownChildrenText(children: any): string {
   if (children == null || typeof children === 'boolean') return ''
   if (typeof children === 'string' || typeof children === 'number') return String(children)
@@ -131,91 +127,6 @@ function getMarkdownChildrenText(children: any): string {
 function getTimePropsFromChildren(children: any) {
   const seconds = parseTimestampSeconds(getMarkdownChildrenText(children))
   return seconds == null ? {} : { 'data-vm-time': seconds }
-}
-
-function imageSrcCandidates(src: string, baseURL: string): string[] {
-  if (!src) return []
-  if (!src.startsWith('/')) return [src]
-
-  const candidates = [src]
-  const backendSrc = `${baseURL}${src}`
-  if (baseURL && backendSrc !== src) {
-    candidates.push(backendSrc)
-  }
-  return Array.from(new Set(candidates))
-}
-
-function MarkdownImageBlock({
-  src,
-  alt,
-  baseURL,
-  videoCtx,
-  onTimeAnchorClick,
-  imgProps,
-}: {
-  src: string
-  alt: string
-  baseURL: string
-  videoCtx?: { url?: string; platform?: string }
-  onTimeAnchorClick?: (seconds: number) => void
-  imgProps: Record<string, any>
-}) {
-  const candidates = useMemo(() => imageSrcCandidates(src, baseURL), [src, baseURL])
-  const [candidateIndex, setCandidateIndex] = useState(0)
-
-  useEffect(() => {
-    setCandidateIndex(0)
-  }, [src, baseURL])
-
-  const currentSrc = candidates[candidateIndex] || ''
-  const failed = candidates.length > 0 && candidateIndex >= candidates.length
-
-  const tsMatch = alt.match(/原片 @ (\d{1,2}):(\d{2})/)
-  let jumpUrl = ''
-  let timeText = ''
-  let seconds: number | null = null
-  if (tsMatch && videoCtx?.url) {
-    timeText = `${tsMatch[1]}:${tsMatch[2]}`
-    seconds = parseInt(tsMatch[1], 10) * 60 + parseInt(tsMatch[2], 10)
-    jumpUrl = buildVideoTimestampUrl(videoCtx.url, videoCtx.platform, seconds)
-  }
-
-  return (
-    <div className="my-8 flex flex-col items-center gap-2" data-vm-time={seconds ?? undefined}>
-      {failed ? (
-        <div className="w-full rounded-lg border border-dashed border-neutral-300 bg-neutral-50 px-4 py-8 text-center text-sm text-neutral-500">
-          截图加载失败
-        </div>
-      ) : (
-        <Zoom>
-          <img
-            {...imgProps}
-            src={currentSrc}
-            alt=""
-            referrerPolicy="no-referrer"
-            className="max-w-full cursor-zoom-in rounded-lg object-contain shadow-md transition-all hover:shadow-lg"
-            style={{ maxHeight: '500px', width: 'auto' }}
-            onError={() => setCandidateIndex(index => index + 1)}
-          />
-        </Zoom>
-      )}
-      {jumpUrl && (
-        <a
-          href={jumpUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          title={jumpUrl}
-          className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100"
-          onClick={() => {
-            if (seconds != null) onTimeAnchorClick?.(seconds)
-          }}
-        >
-          <Play className="h-3 w-3" />
-          <span>跳转原片（{timeText}）</span>
-        </a>
-      )}
-    </div>
-  )
 }
 
 /**
@@ -360,18 +271,59 @@ function createMarkdownComponents(
       )
     },
     img: ({ node, ...props }: any) => {
+      let src: string = props.src || ''
+      if (src.startsWith('/')) {
+        // 本地截图 /static/screenshots/... -> 拼后端 baseURL
+        src = baseURL + src
+      }
+      // 外部图片（XHS / B 站 / YouTube CDN）保持原 URL，靠 referrerPolicy="no-referrer"
+      // 绕过 CDN 的 Referer 校验。与左侧 NoteThumb 同一招。
+      props.src = src
+
       // 截图的 alt 里带「原片 @ mm:ss」（后端 _insert_screenshots 写入），
       // 据此在图片下方生成「跳转原片对应时间点」的链接。
       const alt: string = props.alt || ''
+      const tsMatch = alt.match(/原片 @ (\d{1,2}):(\d{2})/)
+      let jumpUrl = ''
+      let timeText = ''
+      let seconds: number | null = null
+      if (tsMatch && videoCtx?.url) {
+        timeText = `${tsMatch[1]}:${tsMatch[2]}`
+        seconds = parseInt(tsMatch[1], 10) * 60 + parseInt(tsMatch[2], 10)
+        jumpUrl = buildVideoTimestampUrl(videoCtx.url, videoCtx.platform, seconds)
+      }
+
       return (
-        <MarkdownImageBlock
-          src={props.src || ''}
-          alt={alt}
-          baseURL={baseURL}
-          videoCtx={videoCtx}
-          onTimeAnchorClick={onTimeAnchorClick}
-          imgProps={props}
-        />
+        <div className="my-8 flex flex-col items-center gap-2" data-vm-time={seconds ?? undefined}>
+          <Zoom>
+            <img
+              {...props}
+              alt=""
+              referrerPolicy="no-referrer"
+              crossOrigin="anonymous"
+              className="max-w-full cursor-zoom-in rounded-lg object-cover shadow-md transition-all hover:shadow-lg"
+              style={{ maxHeight: '500px' }}
+              onError={e => {
+                ;(e.currentTarget as HTMLImageElement).style.display = 'none'
+              }}
+            />
+          </Zoom>
+          {jumpUrl && (
+            <a
+              href={jumpUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={jumpUrl}
+              className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100"
+              onClick={() => {
+                if (seconds != null) onTimeAnchorClick?.(seconds)
+              }}
+            >
+              <Play className="h-3 w-3" />
+              <span>跳转原片（{timeText}）</span>
+            </a>
+          )}
+        </div>
       )
     },
     strong: ({ children, ...props }: any) => (
@@ -539,6 +491,7 @@ const MarkdownViewer: FC<MarkdownViewerProps> = memo(({ status }) => {
   const isMultiVersion = Array.isArray(currentTask?.markdown)
   const [showChat, setShowChat] = useState<false | 'half' | 'full'>(false)
   const [viewMode, setViewMode] = useState<'map' | 'preview'>('preview')
+  const [transcriptOpen, setTranscriptOpen] = useState(() => window.innerWidth >= 1200)
   const svgRef = useRef<SVGSVGElement>(null)
   const noteContentRef = useRef<HTMLDivElement>(null)
   const [activeTranscriptTime, setActiveTranscriptTime] = useState<number | null>(null)
@@ -902,7 +855,8 @@ const MarkdownViewer: FC<MarkdownViewerProps> = memo(({ status }) => {
     URL.revokeObjectURL(url)
     toast.success('字幕文件已导出')
   }
-  const showTranscriptPane = !!currentTask && showChat !== 'half'
+  const showTranscriptPane = !!currentTask && showChat !== 'half' && transcriptOpen
+  const canToggleTranscriptPane = !!currentTask && showChat !== 'half'
 
   if (status === 'loading') {
     // 把后端状态映射到新设计的 5 步进度 + GenHero 动画的 stepIndex
@@ -1056,6 +1010,8 @@ const MarkdownViewer: FC<MarkdownViewerProps> = memo(({ status }) => {
         createAt={createTime}
         showChat={showChat}
         setShowChat={setShowChat}
+        showTranscript={transcriptOpen && !!currentTask && showChat !== 'half'}
+        setShowTranscript={setTranscriptOpen}
         viewMode={viewMode}
         setViewMode={setViewMode}
       />
@@ -1125,7 +1081,7 @@ const MarkdownViewer: FC<MarkdownViewerProps> = memo(({ status }) => {
                     <div
                       className={`vm-note-result-grid ${showTranscriptPane ? '' : 'without-transcript'}`}
                     >
-                      <ScrollArea className="vm-note-main-scroll min-w-0">
+                      <div className="vm-note-main-scroll min-w-0">
                         {outlineItems.length > 0 && (
                           <div className="vm-note-outline-bar">
                             <div className="relative">
@@ -1168,19 +1124,29 @@ const MarkdownViewer: FC<MarkdownViewerProps> = memo(({ status }) => {
                             rehypePlugins={rehypePlugins}
                             components={markdownComponents}
                           >
-                            {normalizeMarkdownImageBlocks(
-                              selectedContent.replace(/^>\s*来源链接：[^\n]*\n*/m, '')
-                            )}
+                            {selectedContent.replace(/^>\s*来源链接：[^\n]*\n*/m, '')}
                           </ReactMarkdown>
                         </div>
-                      </ScrollArea>
+                      </div>
                       {showTranscriptPane && (
                         <aside className="vm-transcript-pane" aria-label="字幕">
                           <TranscriptViewer
                             activeTime={activeTranscriptTime}
                             onSegmentClick={segment => scrollNoteToTime(segment.start)}
+                            onCollapse={() => setTranscriptOpen(false)}
                           />
                         </aside>
+                      )}
+                      {canToggleTranscriptPane && !showTranscriptPane && (
+                        <button
+                          type="button"
+                          className="vm-transcript-expand-btn"
+                          title="展开字幕"
+                          aria-label="展开字幕"
+                          onClick={() => setTranscriptOpen(true)}
+                        >
+                          <ChevronLeft className="h-4 w-4" strokeWidth={2.2} />
+                        </button>
                       )}
                     </div>
                   )}

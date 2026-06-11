@@ -15,7 +15,6 @@ from app.downloaders.bilibili_downloader import BilibiliDownloader
 from app.downloaders.douyin_downloader import DouyinDownloader
 from app.downloaders.local_downloader import LocalDownloader
 from app.downloaders.youtube_downloader import YoutubeDownloader
-from app.db.model_dao import get_model_by_provider_and_name
 from app.db.video_task_dao import delete_task_by_video, insert_video_task
 from app.enmus.exception import NoteErrorEnum, ProviderErrorEnum
 from app.enmus.task_status_enums import TaskStatus
@@ -38,8 +37,8 @@ from app.utils.note_helper import replace_content_markers, prepend_source_link, 
 from app.utils.path_helper import get_runtime_dir
 from app.utils.screenshot_marker import (
     ensure_screenshot_markers,
+    extract_content_timestamps,
     extract_screenshot_timestamps,
-    remove_screenshot_markers,
 )
 from app.utils.status_code import StatusCode
 from app.utils.video_helper import generate_screenshot
@@ -218,34 +217,6 @@ class NoteGenerator:
 
             downloader = self._get_downloader(platform)
             gpt = self._get_gpt(model_name, provider_id)
-            _format = list(_format or [])
-            if screenshot and "screenshot" not in _format:
-                _format.append("screenshot")
-            if link and "link" not in _format:
-                _format.append("link")
-            screenshot = screenshot or "screenshot" in _format
-            link = link or "link" in _format
-            logger.info(
-                "生成选项: task_id=%s platform=%s model=%s format=%s "
-                "screenshot=%s link=%s video_understanding=%s",
-                task_id,
-                platform,
-                model_name,
-                _format,
-                screenshot,
-                link,
-                video_understanding,
-            )
-
-            if not self._model_supports_multimodal(provider_id, model_name):
-                if screenshot or video_understanding or "screenshot" in _format:
-                    logger.info(
-                        f"模型未配置为多模态，自动关闭截图/视频理解 "
-                        f"(task_id={task_id}, model={model_name})"
-                    )
-                screenshot = False
-                video_understanding = False
-                _format = [item for item in _format if item != "screenshot"]
 
             # 缓存文件路径
             audio_cache_file = NOTE_OUTPUT_DIR / f"{task_id}_audio.json"
@@ -365,21 +336,12 @@ class NoteGenerator:
                 video_img_urls=self.video_img_urls,
             )
 
-            formats_for_post_process = list(_format or [])
-            if getattr(gpt, "vision_fallback_used", False):
-                markdown = remove_screenshot_markers(markdown)
-                markdown_cache_file.write_text(markdown, encoding="utf-8")
-                formats_for_post_process = [
-                    item for item in formats_for_post_process if item != "screenshot"
-                ]
-                logger.info(f"模型不支持图片输入，已自动关闭截图后处理 (task_id={task_id})")
-
             # 4. 截图 & 链接替换
-            if formats_for_post_process:
+            if _format:
                 markdown = self._post_process_markdown(
                     markdown=markdown,
                     video_path=self.video_path,
-                    formats=formats_for_post_process,
+                    formats=_format,
                     audio_meta=audio_meta,
                     platform=platform,
                 )
@@ -478,17 +440,6 @@ class NoteGenerator:
             name=provider["name"],
         )
         return GPTFactory().from_config(config)
-
-    @staticmethod
-    def _model_supports_multimodal(provider_id: Optional[str], model_name: Optional[str]) -> bool:
-        if not provider_id or not model_name:
-            return False
-        try:
-            model = get_model_by_provider_and_name(str(provider_id), model_name)
-            return bool(model and model.get("supports_multimodal"))
-        except Exception as exc:
-            logger.warning(f"读取模型多模态配置失败，默认关闭：provider_id={provider_id} model={model_name} err={exc}")
-            return False
 
     def _get_downloader(self, platform: str) -> Downloader:
         """
@@ -641,7 +592,57 @@ class NoteGenerator:
             logger.info(f"检测到音频缓存 ({audio_cache_file})，直接读取")
             try:
                 data = json.loads(audio_cache_file.read_text(encoding="utf-8"))
-                return AudioDownloadResult(**data)
+                audio = AudioDownloadResult(**data)
+
+                # 判断是否需要下载/恢复视频
+                need_video = screenshot or video_understanding
+                if need_video:
+                    video_path_str = data.get("video_path")
+                    # 尝试推导视频路径
+                    if not video_path_str:
+                        # 兜底1: 针对小红书/抖音等平台，音频路径 file_path 实际上就是下载的 .mp4 视频
+                        if audio.file_path and audio.file_path.endswith(".mp4"):
+                            video_path_str = audio.file_path
+                        # 兜底2: 猜测与音频同目录下的 <video_id>.mp4
+                        elif audio.file_path:
+                            audio_dir = Path(audio.file_path).parent
+                            possible_video = audio_dir / f"{audio.video_id}.mp4"
+                            if possible_video.exists():
+                                video_path_str = str(possible_video)
+
+                    # 检查视频文件是否存在，不存在则重新下载视频
+                    if video_path_str and Path(video_path_str).exists():
+                        self.video_path = Path(video_path_str)
+                        logger.info(f"已从缓存恢复视频路径：{self.video_path}")
+                    else:
+                        logger.info("缓存中未找到视频路径或视频文件不存在，重新下载视频")
+                        video_path_str = downloader.download_video(video_url)
+                        self.video_path = Path(video_path_str)
+                        logger.info(f"重新下载视频完成：{self.video_path}")
+
+                        # 更新缓存中的 video_path
+                        audio.video_path = str(self.video_path)
+                        try:
+                            audio_cache_file.write_text(
+                                json.dumps(asdict(audio), ensure_ascii=False, indent=2),
+                                encoding="utf-8"
+                            )
+                        except Exception as cache_err:
+                            logger.warning(f"更新音频缓存中的 video_path 失败: {cache_err}")
+
+                    # 如果需要视频理解且指定了 grid_size，在缓存命中时也重新生成/加载 self.video_img_urls
+                    if grid_size:
+                        frame_interval = video_interval if video_interval and video_interval > 0 else 6
+                        self.video_img_urls = VideoReader(
+                            video_path=str(self.video_path),
+                            grid_size=tuple(grid_size),
+                            frame_interval=frame_interval,
+                            unit_width=960,
+                            unit_height=540,
+                            save_quality=80,
+                        ).run()
+
+                return audio
             except Exception as e:
                 logger.warning(f"读取音频缓存失败，将重新下载：{e}")
 
@@ -704,6 +705,8 @@ class NoteGenerator:
                 output_dir=output_path,
                 need_video=need_video,
             )
+            if self.video_path:
+                audio.video_path = str(self.video_path)
             audio_cache_file.write_text(json.dumps(asdict(audio), ensure_ascii=False, indent=2), encoding="utf-8")
             logger.info(f"音频下载并缓存成功 ({audio_cache_file})")
             return audio
@@ -1026,7 +1029,7 @@ class NoteGenerator:
                 markdown = ensure_screenshot_markers(markdown, audio_meta.duration)
                 markdown = self._insert_screenshots(markdown, video_path)
             except Exception as exc:
-                logger.warning(f"截图插入失败，跳过该步骤：{exc}")
+                logger.warning("截图插入失败，跳过该步骤")
 
         if "link" in formats:
             try:
@@ -1036,7 +1039,7 @@ class NoteGenerator:
 
         return markdown
 
-    def _insert_screenshots(self, markdown: str, video_path: Path) -> str | None | Any:
+    def _insert_screenshots(self, markdown: str, video_path: Path) -> str:
         """
         扫描 Markdown 文本中所有 Screenshot 标记，并替换为实际生成的截图链接。
 
@@ -1045,6 +1048,9 @@ class NoteGenerator:
         :return: 替换后的 Markdown 字符串
         """
         matches: List[Tuple[str, int]] = extract_screenshot_timestamps(markdown)
+        if not matches:
+            content_times = extract_content_timestamps(markdown)
+            matches = [(f"*Content-[{ts // 60:02d}:{ts % 60:02d}]", ts) for ts in content_times]
         for idx, (marker, ts) in enumerate(matches):
             try:
                 img_path = generate_screenshot(str(video_path), str(IMAGE_OUTPUT_DIR), ts, idx)
@@ -1054,11 +1060,14 @@ class NoteGenerator:
                 # 把时间戳写进 alt（「原片 @ mm:ss」），前端据此在截图下方生成
                 # 「跳转原片对应时间点」的链接。alt 不显示在页面上，不影响观感。
                 alt = f"原片 @ {ts // 60:02d}:{ts % 60:02d}"
-                markdown = markdown.replace(marker, f"![{alt}]({img_url})", 1)
+                if marker.startswith("*Content-"):
+                    markdown = markdown.replace(marker, f"{marker}\n\n![{alt}]({img_url})", 1)
+                else:
+                    markdown = markdown.replace(marker, f"![{alt}]({img_url})", 1)
             except Exception as exc:
                 logger.error(f"生成截图失败 (timestamp={ts})：{exc}")
-                # self._handle_exception(task_id, exc)
-                return None
+                # 不再直接返回 None，而是继续处理其他截图，保留原文本
+                continue
         return markdown
 
     @staticmethod

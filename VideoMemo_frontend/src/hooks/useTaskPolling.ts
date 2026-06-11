@@ -3,82 +3,63 @@ import { useTaskStore } from '@/store/taskStore'
 import { get_task_status } from '@/services/note.ts'
 import toast from 'react-hot-toast'
 
-const TERMINAL_STATUSES = new Set(['SUCCESS', 'FAILED'])
-const successToastTaskIds = new Set<string>()
-
 export const useTaskPolling = (interval = 3000) => {
+  const tasks = useTaskStore(state => state.tasks)
   const updateTaskContent = useTaskStore(state => state.updateTaskContent)
-  const inFlightRef = useRef(false)
+  const updateTaskStatus = useTaskStore(state => state.updateTaskStatus)
+  const removeTask = useTaskStore(state => state.removeTask)
+
+  const tasksRef = useRef(tasks)
+
+  // 每次 tasks 更新，把最新的 tasks 同步进去
+  useEffect(() => {
+    tasksRef.current = tasks
+  }, [tasks])
 
   useEffect(() => {
-    const pollTasks = async () => {
-      if (inFlightRef.current) return
+    const timer = setInterval(async () => {
+      const pendingTasks = tasksRef.current.filter(
+        task => task.status != 'SUCCESS' && task.status != 'FAILED'
+      )
 
-      const pendingTasks = useTaskStore
-        .getState()
-        .tasks.filter(task => !TERMINAL_STATUSES.has(task.status))
-
+      // 无活跃任务时跳过轮询
       if (pendingTasks.length === 0) return
 
-      inFlightRef.current = true
-      try {
-        for (const task of pendingTasks) {
-          const latestTask = useTaskStore.getState().tasks.find(item => item.id === task.id)
-          if (!latestTask || TERMINAL_STATUSES.has(latestTask.status)) {
-            continue
+      for (const task of pendingTasks) {
+        try {
+          const res = await get_task_status(task.id)
+          const { status, paused, cache } = res
+
+          if (status === 'SUCCESS' && status !== task.status) {
+            const result = res.result || {}
+            updateTaskContent(task.id, {
+              status,
+              markdown: result.markdown,
+              transcript: result.transcript,
+              audioMeta: result.audio_meta,
+              totalTokens: result.total_tokens,
+              paused: false,
+              cache,
+              completedAt: new Date().toISOString(), // 补记完成时间
+            })
+            toast.success('笔记生成成功')
+          } else if (status === 'FAILED' && status !== task.status) {
+            updateTaskContent(task.id, { status, paused: false })
+            console.warn(`⚠️ 任务 ${task.id} 失败`)
+          } else if (
+            status &&
+            (status !== task.status || !!paused !== !!task.paused || cache !== task.cache)
+          ) {
+            // 处理中：状态或暂停标记变化时同步
+            updateTaskContent(task.id, { status, paused: !!paused, cache })
           }
-
-          try {
-            const res = await get_task_status(task.id)
-            const { status, paused, cache } = res || {}
-            if (!status) continue
-
-            const currentTask = useTaskStore.getState().tasks.find(item => item.id === task.id)
-            if (!currentTask || TERMINAL_STATUSES.has(currentTask.status)) {
-              continue
-            }
-
-            if (status === 'SUCCESS') {
-              const result = res.result || {}
-              updateTaskContent(task.id, {
-                status,
-                markdown: result.markdown,
-                transcript: result.transcript,
-                audioMeta: result.audio_meta,
-                totalTokens: result.total_tokens,
-                paused: false,
-                cache,
-                completedAt: new Date().toISOString(),
-              })
-              if (!successToastTaskIds.has(task.id)) {
-                successToastTaskIds.add(task.id)
-                toast.success('笔记生成成功')
-              }
-            } else if (status === 'FAILED') {
-              updateTaskContent(task.id, { status, paused: false })
-              console.warn(`⚠️ 任务 ${task.id} 失败`)
-            } else if (
-              status !== currentTask.status ||
-              !!paused !== !!currentTask.paused ||
-              cache !== currentTask.cache
-            ) {
-              updateTaskContent(task.id, { status, paused: !!paused, cache })
-            }
-          } catch (e) {
-            console.error('❌ 任务轮询失败：', e)
-            updateTaskContent(task.id, { status: 'FAILED' })
-          }
+        } catch (e) {
+          console.error('❌ 任务轮询失败：', e)
+          updateTaskContent(task.id, { status: 'FAILED' })
         }
-      } finally {
-        inFlightRef.current = false
       }
-    }
-
-    void pollTasks()
-    const timer = setInterval(() => {
-      void pollTasks()
     }, interval)
 
     return () => clearInterval(timer)
-  }, [interval, updateTaskContent])
+  }, [interval])
 }

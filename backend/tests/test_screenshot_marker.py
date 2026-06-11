@@ -1,5 +1,6 @@
 import importlib.util
 import pathlib
+import unittest
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -10,49 +11,39 @@ if spec is None or spec.loader is None:
 screenshot_marker = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(screenshot_marker)
 extract_screenshot_timestamps = screenshot_marker.extract_screenshot_timestamps
-remove_screenshot_markers = screenshot_marker.remove_screenshot_markers
+extract_content_timestamps = screenshot_marker.extract_content_timestamps
 ensure_screenshot_markers = screenshot_marker.ensure_screenshot_markers
 
 
-def test_remove_screenshot_markers_strips_supported_marker_formats():
-    markdown = "A *Screenshot-[01:23]\nB Screenshot-02:34\nC"
+class TestScreenshotMarker(unittest.TestCase):
+    def test_extract_accepts_star_bracket_format(self):
+        markdown = "A\n*Screenshot-[01:02]\nB"
+        matches = extract_screenshot_timestamps(markdown)
+        self.assertEqual(matches, [("*Screenshot-[01:02]", 62)])
 
-    cleaned = remove_screenshot_markers(markdown)
+    def test_extract_accepts_legacy_formats(self):
+        markdown = "*Screenshot-03:04 and Screenshot-[05:06]"
+        matches = extract_screenshot_timestamps(markdown)
+        self.assertEqual(
+            matches,
+            [
+                ("*Screenshot-03:04", 184),
+                ("Screenshot-[05:06]", 306),
+            ],
+        )
 
-    assert "Screenshot" not in cleaned
-    assert "A " in cleaned
-    assert "B " in cleaned
+    def test_extract_content_timestamps_for_fallback(self):
+        markdown = "## A *Content-[00:12]\n## B *Content-[01:03]\n## C *Content-[01:03]"
+        matches = extract_content_timestamps(markdown)
+        self.assertEqual(matches, [12, 63])
 
-
-def test_extract_screenshot_timestamps_keeps_existing_formats():
-    markdown = "A *Screenshot-[01:23]\nB Screenshot-02:34"
-
-    assert extract_screenshot_timestamps(markdown) == [
-        ("*Screenshot-[01:23]", 83),
-        ("Screenshot-02:34", 154),
-    ]
-
-
-def test_ensure_screenshot_markers_preserves_existing_markers():
-    markdown = "## A\n\n*Screenshot-[01:23]"
-
-    assert ensure_screenshot_markers(markdown, duration=120) == markdown
-
-
-def test_ensure_screenshot_markers_adds_keyframes_when_model_omits_markers():
-    markdown = "## A\n\n正文"
-
-    result = ensure_screenshot_markers(markdown, duration=100)
-
-    assert result.startswith(markdown)
-    assert "## 关键画面" in result
-    assert "*Screenshot-[00:25]" in result
-    assert "*Screenshot-[00:50]" in result
-    assert "*Screenshot-[01:15]" in result
+    def test_ensure_screenshot_markers_adds_duration_fallback(self):
+        markdown = "## A\ncontent"
+        with_markers = ensure_screenshot_markers(markdown, 120)
+        self.assertIn("*Screenshot-[00:30]", with_markers)
+        self.assertIn("*Screenshot-[01:00]", with_markers)
+        self.assertIn("*Screenshot-[01:30]", with_markers)
 
 
-def test_ensure_screenshot_markers_separates_keyframes_as_markdown_blocks():
-    result = ensure_screenshot_markers("## A\n\n正文", duration=100)
-
-    assert "*Screenshot-[00:25]\n\n*Screenshot-[00:50]" in result
-    assert "*Screenshot-[00:50]\n\n*Screenshot-[01:15]" in result
+if __name__ == "__main__":
+    unittest.main()

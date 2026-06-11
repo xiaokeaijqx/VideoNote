@@ -333,3 +333,79 @@ def test_map_douyin_hot_items_extracts_detail_aweme_entries():
         hot_score="123456热度",
         source="douyin_hot_search",
     )
+
+
+def test_fetch_newsnow_hot_maps_correctly(monkeypatch):
+    from app.services.hot_videos import _fetch_newsnow_hot
+
+    mock_payload = {
+        "status": "cache",
+        "id": "zhihu",
+        "items": [
+            {
+                "id": "12345",
+                "title": "测试知乎标题",
+                "url": "https://zhihu.com/question/12345",
+                "author": "知乎网友",
+                "extra": {"info": "100万热度"},
+            },
+            {
+                "id": "67890",
+                "title": "",  # empty title should be skipped
+                "url": "https://zhihu.com/question/67890",
+            },
+        ],
+    }
+
+    class FakeResponse:
+        status_code = 200
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return mock_payload
+
+    class FakeSession:
+        headers = {}
+
+        def get(self, url, params=None, **kwargs):
+            assert "newsnow" in url
+            assert params == {"id": "zhihu"}
+            return FakeResponse()
+
+    monkeypatch.setattr(hot_videos, "_session", lambda: FakeSession())
+
+    result = _fetch_newsnow_hot("zhihu", limit=5)
+    assert result.status == "ok"
+    assert result.platform == "zhihu"
+    assert len(result.items) == 1
+    assert result.items[0] == HotVideoItem(
+        id="12345",
+        platform="zhihu",
+        title="测试知乎标题",
+        url="https://zhihu.com/question/12345",
+        cover_url="",
+        author="知乎网友",
+        rank=1,
+        hot_score="100万热度",
+        source="newsnow",
+    )
+
+
+def test_fetch_newsnow_hot_handles_failure(monkeypatch):
+    from app.services.hot_videos import _fetch_newsnow_hot
+
+    class FakeSession:
+        headers = {}
+
+        def get(self, url, params=None, **kwargs):
+            raise RuntimeError("API timeout")
+
+    monkeypatch.setattr(hot_videos, "_session", lambda: FakeSession())
+
+    result = _fetch_newsnow_hot("zhihu", limit=5)
+    assert result.status == "error"
+    assert "API timeout" in result.message
+    assert len(result.items) == 0
+

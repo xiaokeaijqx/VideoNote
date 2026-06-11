@@ -14,7 +14,8 @@ export const VmSelect: FC<{
   renderOption?: (o: VmSelectOption) => ReactNode
   width?: number | string
   disabled?: boolean
-}> = ({ value, onChange, options, placeholder, renderOption, width, disabled }) => {
+  className?: string
+}> = ({ value, onChange, options, placeholder, renderOption, width, disabled, className }) => {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -29,7 +30,7 @@ export const VmSelect: FC<{
     <div ref={ref} style={{ position: 'relative', width: width || '100%' }}>
       <button
         type="button"
-        className="vm-select-trigger"
+        className={`vm-select-trigger${className ? ` ${className}` : ''}`}
         onClick={() => !disabled && setOpen(o => !o)}
         disabled={disabled}
       >

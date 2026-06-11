@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+from json import JSONDecodeError
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
@@ -10,8 +11,31 @@ from typing import Any, Callable, Literal
 
 import requests
 
-HotPlatform = Literal["bilibili", "youtube", "douyin", "kuaishou", "xiaohongshu"]
-HotPlatformFilter = Literal["all", "bilibili", "youtube", "douyin", "kuaishou", "xiaohongshu"]
+HotPlatform = Literal[
+    "bilibili",
+    "youtube",
+    "douyin",
+    "kuaishou",
+    "xiaohongshu",
+    "weibo",
+    "zhihu",
+    "baidu",
+    "36kr",
+    "ithome",
+]
+HotPlatformFilter = Literal[
+    "all",
+    "bilibili",
+    "youtube",
+    "douyin",
+    "kuaishou",
+    "xiaohongshu",
+    "weibo",
+    "zhihu",
+    "baidu",
+    "36kr",
+    "ithome",
+]
 PlatformStatus = Literal["ok", "error", "unavailable"]
 
 SUPPORTED_HOT_PLATFORMS: tuple[HotPlatform, ...] = (
@@ -20,6 +44,11 @@ SUPPORTED_HOT_PLATFORMS: tuple[HotPlatform, ...] = (
     "douyin",
     "kuaishou",
     "xiaohongshu",
+    "weibo",
+    "zhihu",
+    "baidu",
+    "36kr",
+    "ithome",
 )
 CACHE_TTL_SECONDS = 600
 DEFAULT_TIMEOUT_SECONDS = 6
@@ -155,6 +184,8 @@ def _normalize_image_url(url: Any) -> str:
     text = str(url or "").strip()
     if text.startswith("//"):
         return f"https:{text}"
+    if text.startswith("http://"):
+        return f"https://{text.removeprefix('http://')}"
     return text
 
 
@@ -337,18 +368,26 @@ def _fetch_youtube_hot(limit: int) -> PlatformHotVideoResult:
 
 
 def _fetch_douyin_hot(limit: int) -> PlatformHotVideoResult:
-    response = _session().get(
-        "https://www.douyin.com/aweme/v1/web/hot/search/list/",
-        params={
-            "device_platform": "webapp",
-            "aid": "6383",
-            "channel": "channel_pc_web",
-            "detail_list": "1",
-        },
-        timeout=DEFAULT_TIMEOUT_SECONDS,
-    )
-    response.raise_for_status()
-    items = _map_douyin_hot_items(response.json(), limit=limit)
+    try:
+        response = _session().get(
+            "https://www.douyin.com/aweme/v1/web/hot/search/list/",
+            params={
+                "device_platform": "webapp",
+                "aid": "6383",
+                "channel": "channel_pc_web",
+                "detail_list": "1",
+            },
+            timeout=DEFAULT_TIMEOUT_SECONDS,
+        )
+        response.raise_for_status()
+        items = _map_douyin_hot_items(response.json(), limit=limit)
+    except (JSONDecodeError, ValueError) as exc:
+        return PlatformHotVideoResult(
+            platform="douyin",
+            status="error",
+            message="抖音热点接口返回了风控/空页面，暂时无法解析",
+            items=[],
+        )
     return PlatformHotVideoResult(
         platform="douyin",
         status="ok" if items else "error",
@@ -375,12 +414,84 @@ def _fetch_xiaohongshu_hot(limit: int) -> PlatformHotVideoResult:
     )
 
 
+def _fetch_newsnow_hot(platform_id: HotPlatform, limit: int) -> PlatformHotVideoResult:
+    import os
+    api_url = os.getenv("NEWSNOW_API_URL", "https://newsnow.busiyi.world/api/s")
+    if not api_url.endswith("/api/s"):
+        api_url = api_url.rstrip("/") + "/api/s"
+    try:
+        response = _session().get(
+            api_url,
+            params={"id": platform_id},
+            timeout=DEFAULT_TIMEOUT_SECONDS,
+        )
+        response.raise_for_status()
+        payload = response.json()
+        raw_items = payload.get("items", [])[:limit]
+        items: list[HotVideoItem] = []
+        for index, item in enumerate(raw_items):
+            title = str(item.get("title") or "").strip()
+            if not title:
+                continue
+            items.append(
+                HotVideoItem(
+                    id=str(item.get("id") or ""),
+                    platform=platform_id,
+                    title=title,
+                    url=str(item.get("url") or ""),
+                    cover_url="",
+                    author=str(item.get("author") or "").strip(),
+                    rank=index + 1,
+                    hot_score=str(item.get("extra", {}).get("info") or "").strip(),
+                    source="newsnow",
+                )
+            )
+        return PlatformHotVideoResult(
+            platform=platform_id,
+            status="ok",
+            message="",
+            items=items,
+        )
+    except Exception as exc:
+        return PlatformHotVideoResult(
+            platform=platform_id,
+            status="error",
+            message=f"{platform_id} 热点获取失败: {exc}",
+            items=[],
+        )
+
+
+def _fetch_weibo_hot(limit: int) -> PlatformHotVideoResult:
+    return _fetch_newsnow_hot("weibo", limit)
+
+
+def _fetch_zhihu_hot(limit: int) -> PlatformHotVideoResult:
+    return _fetch_newsnow_hot("zhihu", limit)
+
+
+def _fetch_baidu_hot(limit: int) -> PlatformHotVideoResult:
+    return _fetch_newsnow_hot("baidu", limit)
+
+
+def _fetch_36kr_hot(limit: int) -> PlatformHotVideoResult:
+    return _fetch_newsnow_hot("36kr", limit)
+
+
+def _fetch_ithome_hot(limit: int) -> PlatformHotVideoResult:
+    return _fetch_newsnow_hot("ithome", limit)
+
+
 HOT_FETCHERS: dict[HotPlatform, Callable[[int], PlatformHotVideoResult]] = {
     "bilibili": _fetch_bilibili_hot,
     "youtube": _fetch_youtube_hot,
     "douyin": _fetch_douyin_hot,
     "kuaishou": _fetch_kuaishou_hot,
     "xiaohongshu": _fetch_xiaohongshu_hot,
+    "weibo": _fetch_weibo_hot,
+    "zhihu": _fetch_zhihu_hot,
+    "baidu": _fetch_baidu_hot,
+    "36kr": _fetch_36kr_hot,
+    "ithome": _fetch_ithome_hot,
 }
 
 

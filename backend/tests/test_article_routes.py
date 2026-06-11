@@ -33,6 +33,13 @@ class FakeService:
     def summarize_item(self, item_id, **kwargs):
         return {"task_id": "task-1", "article_item_id": item_id}
 
+    def fetch_only_from_url(self, url, platform):
+        return {"id": 1, "platform": platform, "url": url, "title": "Test Title"}
+
+    def import_only_content(self, url, platform, title, content_text, author_name=""):
+        return {"id": 1, "platform": platform, "url": url, "title": title, "content_text": content_text}
+
+
 
 def app_with_fake_service(monkeypatch):
     from app.routers import article
@@ -80,3 +87,36 @@ def test_article_subscription_routes(monkeypatch):
     assert created.status_code == 200
     assert created.json()["data"]["query"] == "账号"
     assert refreshed.json()["data"]["subscription_id"] == 1
+
+
+def test_fetch_article_route(monkeypatch):
+    client = app_with_fake_service(monkeypatch)
+
+    response = client.post(
+        "/api/articles/fetch",
+        json={
+            "url": "https://mp.weixin.qq.com/s/a",
+            "platform": "wechat_mp",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["data"]["url"] == "https://mp.weixin.qq.com/s/a"
+
+
+def test_import_article_route(monkeypatch):
+    client = app_with_fake_service(monkeypatch)
+
+    response = client.post(
+        "/api/articles/import",
+        json={
+            "url": "https://mp.weixin.qq.com/s/a",
+            "platform": "wechat_mp",
+            "title": "My Title",
+            "content_text": "This is a long text content for test.",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["data"]["title"] == "My Title"
+

@@ -54,6 +54,23 @@ export const importArticleContent = async (data: {
   return await request.post('/articles/import_content', data)
 }
 
+export const fetchArticleOnly = async (data: {
+  url: string
+  platform: ArticlePlatform
+}): Promise<ArticleItem> => {
+  return await request.post('/articles/fetch', data)
+}
+
+export const importArticleOnly = async (data: {
+  url?: string
+  platform: ArticlePlatform
+  title?: string
+  content_text: string
+  author_name?: string
+}): Promise<ArticleItem> => {
+  return await request.post('/articles/import', data)
+}
+
 export const searchArticles = async (params: {
   platform: ArticlePlatform
   keyword: string
