@@ -1,4 +1,4 @@
-import { FC, useMemo, useState } from 'react'
+import { FC, useEffect, useMemo, useState } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
   LayoutGrid,
@@ -17,8 +17,12 @@ import {
   Flame,
   KeyRound,
   Newspaper,
+  Radio,
   PanelLeftClose,
   PanelLeftOpen,
+  Bell,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react'
 import { BrandMark } from '@/components/design/BrandMark'
 import { trVm, useVmLang, VM_STRINGS } from '@/i18n/redesign'
@@ -32,14 +36,21 @@ type NavItem = {
   zhKey: keyof typeof VM_STRINGS
 }
 
-const mainNav: NavItem[] = [
+const workspaceNav: NavItem[] = [
   { id: 'workspace', path: '/', icon: <LayoutGrid />, zhKey: 'workspace' },
   { id: 'articles', path: '/articles', icon: <Newspaper />, zhKey: 'articles' },
-  { id: 'hot-videos', path: '/hot-videos', icon: <Flame />, zhKey: 'hotVideos' },
   { id: 'collections', path: '/collections', icon: <Library />, zhKey: 'collections' },
   { id: 'knowledge', path: '/knowledge', icon: <Search />, zhKey: 'knowledge' },
   { id: 'tasks', path: '/tasks', icon: <ListTodo />, zhKey: 'tasks' },
   { id: 'batch', path: '/batch-import', icon: <FileStack />, zhKey: 'batch' },
+]
+
+const hotNav: NavItem[] = [
+  { id: 'trends', path: '/trends', icon: <Radio />, zhKey: 'trendRadar' },
+  { id: 'subscriptions', path: '/subscriptions', icon: <Bell />, zhKey: 'subscriptions' },
+]
+
+const guideNav: NavItem[] = [
   { id: 'guide', path: '/guide', icon: <BookOpen />, zhKey: 'guide' },
 ]
 
@@ -70,7 +81,8 @@ const settingsNav: NavItem[] = [
 const pageMeta: Record<string, { titleKey: string; subKey: string }> = {
   '/': { titleKey: 'workspace', subKey: 'newNoteSub' },
   '/articles': { titleKey: 'articles', subKey: 'articlesSub' },
-  '/hot-videos': { titleKey: 'hotVideos', subKey: 'hotVideosSub' },
+  '/trends': { titleKey: 'trendRadar', subKey: 'trendRadarSub' },
+  '/subscriptions': { titleKey: 'subscriptions', subKey: 'subscriptionsSub' },
   '/tasks': { titleKey: 'tasks', subKey: 'tasksSub' },
   '/batch-import': { titleKey: 'batch', subKey: 'batchSub' },
   '/collections': { titleKey: 'collections', subKey: '' },
@@ -152,8 +164,17 @@ const MainLayout: FC = () => {
   const showEn = useThemeStore(s => s.showNavEn)
   const setCurrentTask = useTaskStore(s => s.setCurrentTask)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [hotCollapsed, setHotCollapsed] = useState(false)
   const navigate = useNavigate()
   const location = useLocation()
+
+  const isHotActive = hotNav.some(
+    n => location.pathname === n.path || location.pathname.startsWith(n.path + '/'),
+  )
+  // auto-expand hot group when on a hot page
+  useEffect(() => {
+    if (isHotActive) setHotCollapsed(false)
+  }, [isHotActive])
 
   // 顶栏 / 侧栏的「新建笔记」入口：清空当前选中的笔记，再回 / 路由。
   // 不清空的话，当用户正在看某条笔记时点这个按钮，HomePage 仍会显示阅读器而不是表单。
@@ -214,7 +235,45 @@ const MainLayout: FC = () => {
         </button>
 
         <div className="vm-nav-group-label">{lang === 'zh' ? '工作台' : 'Workspace'}</div>
-        {mainNav.map(n => (
+        {workspaceNav.map(n => (
+          <SidebarNavItem
+            key={n.id}
+            item={n}
+            lang={lang}
+            showEn={showEn}
+            collapsed={sidebarCollapsed}
+          />
+        ))}
+
+        {/* 热点 — collapsible group */}
+        {!sidebarCollapsed ? (
+          <button
+            className={'vm-nav-item vm-nav-group-toggle' + (isHotActive ? ' active' : '')}
+            onClick={() => setHotCollapsed(v => !v)}
+            style={{ justifyContent: 'space-between', width: '100%' }}
+          >
+            <span style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
+              <span className="vm-nav-ico"><Flame size={17} /></span>
+              <span>{lang === 'zh' ? '热点' : 'Trending'}</span>
+            </span>
+            {hotCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+          </button>
+        ) : (
+          <div className="vm-nav-group-label">{lang === 'zh' ? '热点' : 'Hot'}</div>
+        )}
+        {!sidebarCollapsed && hotCollapsed ? null : (
+          hotNav.map(n => (
+            <SidebarNavItem
+              key={n.id}
+              item={n}
+              lang={lang}
+              showEn={showEn}
+              collapsed={sidebarCollapsed}
+            />
+          ))
+        )}
+
+        {guideNav.map(n => (
           <SidebarNavItem
             key={n.id}
             item={n}

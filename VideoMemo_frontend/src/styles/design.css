@@ -311,6 +311,17 @@ body[data-theme='mono'] {
   text-transform: uppercase;
   padding: 14px 10px 6px;
 }
+.vm-nav-group-toggle {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--vm-muted);
+  padding: 10px 11px;
+  margin-top: 2px;
+  user-select: none;
+}
+.vm-nav-group-toggle:hover {
+  color: var(--vm-text);
+}
 .vm-nav-item {
   display: flex;
   align-items: center;
@@ -2449,4 +2460,508 @@ body[data-theme='mono'] {
   background: var(--vm-primary-soft);
   padding: 1px 7px;
   border-radius: 999px;
+}
+
+/* ============================================================
+   Trends / Trend Radar page
+   ============================================================ */
+.vm-trends-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.vm-trends-header {
+  flex-shrink: 0;
+  padding: 10px 22px;
+  background: var(--vm-surface);
+  border-bottom: 1px solid var(--vm-border);
+}
+
+.vm-trends-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.vm-trends-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--vm-text);
+  letter-spacing: -0.02em;
+}
+
+.vm-trends-icon {
+  color: var(--vm-primary);
+}
+
+.vm-trends-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.vm-trends-timestamp {
+  font-size: 12px;
+  color: var(--vm-faint);
+  font-weight: 500;
+}
+
+.vm-trends-tabs {
+  display: flex;
+  gap: 2px;
+}
+
+.vm-trends-tab {
+  padding: 8px 16px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--vm-muted);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+  margin-bottom: -1px;
+}
+
+.vm-trends-tab:hover {
+  color: var(--vm-text);
+}
+
+.vm-trends-tab.active {
+  color: var(--vm-primary);
+  border-bottom-color: var(--vm-primary);
+}
+
+.vm-trends-grid {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 18px 22px 40px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  align-content: start;
+}
+
+@media (max-width: 1100px) {
+  .vm-trends-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 720px) {
+  .vm-trends-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ─── Card ─────────────────────────────────────────────── */
+.vm-trend-card {
+  background: var(--vm-surface);
+  border: 1px solid var(--vm-border);
+  border-radius: var(--vm-radius);
+  box-shadow: var(--vm-shadow-sm);
+  display: flex;
+  flex-direction: column;
+  min-height: 360px;
+  max-height: 500px;
+  overflow: hidden;
+  transition: box-shadow 0.2s;
+}
+
+.vm-trend-card:hover {
+  box-shadow: var(--vm-shadow-md);
+}
+
+.vm-trend-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--vm-border);
+  border-left: 3px solid transparent;
+  background: var(--vm-surface-2);
+}
+
+.vm-trend-card-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  font-weight: 800;
+  color: var(--vm-text);
+}
+
+.vm-trend-badge-article {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--vm-primary-soft);
+  color: var(--vm-primary);
+}
+
+.vm-trend-card-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 0;
+}
+
+/* ─── List ──────────────────────────────────────────────── */
+.vm-trend-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.vm-trend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 14px;
+  transition: background 0.12s;
+}
+
+.vm-trend-item:hover {
+  background: var(--vm-surface-2);
+}
+
+.vm-trend-rank {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--vm-faint);
+  font-family: var(--vm-font-mono);
+  min-width: 18px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.vm-trend-rank.hot {
+  font-size: 13px;
+}
+
+.vm-trend-item-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--vm-text);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 3px 0;
+  transition: color 0.12s;
+}
+
+.vm-trend-item-title:hover {
+  color: var(--vm-primary);
+}
+
+.vm-trend-score {
+  font-size: 11px;
+  color: var(--vm-faint);
+  font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
+  max-width: 70px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.vm-trend-ext {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 4px;
+  color: var(--vm-faint);
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.12s, color 0.12s, background 0.12s;
+}
+
+.vm-trend-item:hover .vm-trend-ext {
+  opacity: 1;
+}
+
+.vm-trend-ext:hover {
+  color: var(--vm-primary);
+  background: var(--vm-primary-soft);
+}
+
+/* ─── States ────────────────────────────────────────────── */
+.vm-trend-loading,
+.vm-trend-error,
+.vm-trend-empty {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 20px 14px;
+  font-size: 12.5px;
+  color: var(--vm-faint);
+}
+
+.vm-trend-error {
+  color: var(--vm-warn);
+}
+
+/* ─── Drag & drop ─────────────────────────────────────── */
+.vm-trend-drag-handle {
+  opacity: 0.3;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
+}
+.vm-trend-card:hover .vm-trend-drag-handle {
+  opacity: 0.7;
+}
+.vm-trend-card.vm-dragging {
+  opacity: 0.4;
+  box-shadow: none;
+}
+
+/* ─── Three-dot menu ──────────────────────────────────── */
+.vm-trend-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+}
+.vm-trend-menu {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  z-index: 51;
+  background: var(--vm-surface);
+  border: 1px solid var(--vm-border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  min-width: 120px;
+  overflow: hidden;
+}
+.vm-trend-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 14px;
+  border: none;
+  background: none;
+  font-size: 12.5px;
+  font-family: inherit;
+  cursor: pointer;
+  color: var(--vm-text);
+  transition: background 0.12s;
+}
+.vm-trend-menu-item:hover {
+  background: var(--vm-surface-2);
+  color: var(--vm-warn);
+}
+.vm-trend-menu-item:first-child:hover {
+  color: var(--vm-primary);
+}
+
+/* ─── Platform picker popover ─────────────────────────── */
+.vm-platform-picker {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 51;
+  background: var(--vm-surface);
+  border: 1px solid var(--vm-border);
+  border-radius: 12px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.12);
+  width: 480px;
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.vm-platform-picker-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--vm-border);
+  flex-shrink: 0;
+}
+.vm-platform-picker-body {
+  padding: 12px 16px;
+  overflow-y: auto;
+  flex: 1;
+}
+.vm-platform-picker-group {
+  margin-bottom: 12px;
+}
+.vm-platform-picker-group-head {
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ─── Modal ────────────────────────────────────────────── */
+.vm-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(2px);
+}
+.vm-modal {
+  background: var(--vm-surface);
+  border: 1px solid var(--vm-border);
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.12);
+  width: calc(100vw - 40px);
+  max-width: 480px;
+  max-height: 85vh;
+  overflow-y: auto;
+}
+.vm-modal-header {
+  padding: 16px 20px 0;
+}
+.vm-modal-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--vm-text);
+}
+.vm-modal-body {
+  padding: 16px 20px;
+}
+.vm-modal-footer {
+  padding: 0 20px 16px;
+}
+
+/* ─── Empty state ──────────────────────────────────────── */
+.vm-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 48px 20px;
+  text-align: center;
+  color: var(--vm-muted);
+}
+.vm-empty p {
+  margin: 0;
+}
+
+/* ─── Page header ──────────────────────────────────────── */
+.vm-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* ─── Radio & Checkbox labels ──────────────────────────── */
+.vm-radio-label,
+.vm-check-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--vm-text);
+  cursor: pointer;
+}
+.vm-radio-label input,
+.vm-check-label input {
+  accent-color: var(--vm-primary);
+}
+
+/* ─── Subscriptions page ───────────────────────────────── */
+.vm-subscriptions-page .vm-sub-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+@media (max-width: 900px) {
+  .vm-subscriptions-page .vm-sub-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.vm-subscriptions-page .vm-card {
+  padding: 12px 16px;
+}
+.vm-subscriptions-page .vm-card-header {
+  margin-bottom: 6px;
+}
+
+/* ─── Inline match list ─────────────────────────────────── */
+.vm-sub-matches {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 2px;
+  padding: 6px 0 0;
+  border-top: 1px solid var(--vm-border);
+}
+.vm-sub-match-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  transition: background 0.1s;
+}
+.vm-sub-match-item:hover {
+  background: var(--vm-surface-2);
+}
+.vm-sub-match-pf {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.vm-sub-match-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--vm-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.vm-sub-match-time {
+  flex-shrink: 0;
+  font-size: 10.5px;
+  color: var(--vm-faint);
+}
+
+/* ─── Chip active state (if not already defined) ────────── */
+.vm-chip.active {
+  background: var(--vm-primary-soft);
+  color: var(--vm-primary);
+  border-color: var(--vm-primary);
 }

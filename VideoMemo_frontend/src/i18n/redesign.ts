@@ -72,6 +72,16 @@ export const VM_STRINGS: Dict = {
     zh: '选择热门视频，回到工作区生成笔记',
     en: 'Pick a trending video and generate a note',
   },
+  trendRadar: { zh: '热点雷达', en: 'Trend Radar' },
+  trendRadarSub: {
+    zh: '聚合多平台热点，一键创建视频笔记或文章摘要',
+    en: 'Multi-platform hot trends, create notes or article summaries in one click',
+  },
+  subscriptions: { zh: '热点订阅', en: 'Subscriptions' },
+  subscriptionsSub: {
+    zh: '关键词订阅热点，匹配后自动推送通知',
+    en: 'Subscribe to hot trends by keywords, auto-push notifications',
+  },
   links: { zh: '视频链接', en: 'Video links' },
   linksHint: { zh: '每行粘贴一个', en: 'One per line' },
   valid: { zh: '有效', en: 'Valid' },

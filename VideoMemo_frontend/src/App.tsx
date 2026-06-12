@@ -21,7 +21,8 @@ const CollectionDetail = lazy(() => import('@/pages/Collections/CollectionDetail
 const Knowledge = lazy(() => import('@/pages/Knowledge'))
 const TaskList = lazy(() => import('@/pages/TaskList'))
 const BatchImport = lazy(() => import('@/pages/BatchImport'))
-const HotVideos = lazy(() => import('@/pages/HotVideos'))
+const Trends = lazy(() => import('@/pages/Trends'))
+const Subscriptions = lazy(() => import('@/pages/Subscriptions'))
 const Articles = lazy(() => import('@/pages/Articles'))
 const Guide = lazy(() => import('@/pages/Guide'))
 
@@ -98,7 +99,8 @@ function App() {
                 <Route path="collections/:id" element={<CollectionDetail />} />
                 <Route path="knowledge" element={<Knowledge />} />
                 <Route path="tasks" element={<TaskList />} />
-                <Route path="hot-videos" element={<HotVideos />} />
+                <Route path="trends" element={<Trends />} />
+                <Route path="subscriptions" element={<Subscriptions />} />
                 <Route path="articles" element={<Articles />} />
                 <Route path="batch-import" element={<BatchImport />} />
                 <Route path="guide" element={<Guide />} />

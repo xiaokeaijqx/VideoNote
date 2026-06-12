@@ -33,6 +33,7 @@ from app.utils.logger import get_logger
 from app.utils.path_helper import get_runtime_dir
 from app import create_app
 from app.services.transcriber_config_manager import TranscriberConfigManager
+from app.services.scheduler import get_scheduler
 from events import register_handler
 from ffmpeg_helper import ensure_ffmpeg_or_raise
 
@@ -72,11 +73,14 @@ async def lifespan(app: FastAPI):
         seed_default_providers()
 
         logger.info("[startup 5/5] 启动完成，等待请求")
+        get_scheduler().start()
     except Exception:
         logger.exception("[startup FAILED] 后端启动期异常，详见堆栈；容器会退出并由 restart 策略决定是否重试")
         raise
 
     yield
+
+    get_scheduler().stop()
 
 app = create_app(lifespan=lifespan)
 

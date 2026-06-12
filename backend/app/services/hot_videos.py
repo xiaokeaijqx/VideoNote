@@ -12,44 +12,29 @@ from typing import Any, Callable, Literal
 import requests
 
 HotPlatform = Literal[
-    "bilibili",
-    "youtube",
-    "douyin",
-    "kuaishou",
-    "xiaohongshu",
-    "weibo",
-    "zhihu",
-    "baidu",
-    "36kr",
-    "ithome",
+    # ── Video ──
+    "bilibili", "bilibili-hot-search", "youtube", "douyin", "kuaishou", "xiaohongshu",
+    # ── News / social ──
+    "weibo", "zhihu", "baidu", "toutiao", "thepaper", "ifeng",
+    "tieba", "hupu", "tencent", "tencent-hot",
+    "cankaoxiaoxi", "zaobao", "sputniknewscn",
+    "chongbuluo", "chongbuluo-hot", "chongbuluo-latest",
+    "kaopu", "hackernews", "producthunt",
+    "v2ex", "v2ex-share", "solidot",
+    "sspai", "coolapk", "douban", "nowcoder", "pcbeta", "pcbeta-windows11",
+    # ── Finance ──
+    "wallstreetcn", "wallstreetcn-hot", "wallstreetcn-news", "wallstreetcn-quick",
+    "cls", "cls-hot", "cls-telegraph", "cls-depth",
+    "36kr", "36kr-quick", "36kr-renqi",
+    "jin10", "gelonghui", "xueqiu", "xueqiu-hotstock",
+    "mktnews", "mktnews-flash", "fastbull", "fastbull-express", "fastbull-news",
+    # ── IT / dev ──
+    "ithome", "juejin", "github", "github-trending-today", "freebuf", "aihot",
 ]
-HotPlatformFilter = Literal[
-    "all",
-    "bilibili",
-    "youtube",
-    "douyin",
-    "kuaishou",
-    "xiaohongshu",
-    "weibo",
-    "zhihu",
-    "baidu",
-    "36kr",
-    "ithome",
-]
+HotPlatformFilter = Literal["all"] | HotPlatform
 PlatformStatus = Literal["ok", "error", "unavailable"]
 
-SUPPORTED_HOT_PLATFORMS: tuple[HotPlatform, ...] = (
-    "bilibili",
-    "youtube",
-    "douyin",
-    "kuaishou",
-    "xiaohongshu",
-    "weibo",
-    "zhihu",
-    "baidu",
-    "36kr",
-    "ithome",
-)
+SUPPORTED_HOT_PLATFORMS: tuple[HotPlatform, ...] = tuple(HotPlatform.__args__)  # type: ignore[attr-defined]
 CACHE_TTL_SECONDS = 600
 DEFAULT_TIMEOUT_SECONDS = 6
 BILIBILI_POPULAR_API_URL = "https://api.bilibili.com/x/web-interface/popular"
@@ -461,46 +446,28 @@ def _fetch_newsnow_hot(platform_id: HotPlatform, limit: int) -> PlatformHotVideo
         )
 
 
-def _fetch_weibo_hot(limit: int) -> PlatformHotVideoResult:
-    return _fetch_newsnow_hot("weibo", limit)
 
+# ── HOT_FETCHERS: direct platforms + all others via newsnow ─────────────────────
 
-def _fetch_zhihu_hot(limit: int) -> PlatformHotVideoResult:
-    return _fetch_newsnow_hot("zhihu", limit)
+def _make_newsnow_fetcher(platform_id: str):
+    """Create a fetcher for any newsnow-supported platform."""
+    def _fetcher(limit: int) -> PlatformHotVideoResult:
+        return _fetch_newsnow_hot(platform_id, limit)  # type: ignore[arg-type]
+    return _fetcher
 
-
-def _fetch_baidu_hot(limit: int) -> PlatformHotVideoResult:
-    return _fetch_newsnow_hot("baidu", limit)
-
-
-def _fetch_36kr_hot(limit: int) -> PlatformHotVideoResult:
-    return _fetch_newsnow_hot("36kr", limit)
-
-
-def _fetch_ithome_hot(limit: int) -> PlatformHotVideoResult:
-    return _fetch_newsnow_hot("ithome", limit)
-
-
-HOT_FETCHERS: dict[HotPlatform, Callable[[int], PlatformHotVideoResult]] = {
+_DIRECT: dict[HotPlatform, Callable[[int], PlatformHotVideoResult]] = {
     "bilibili": _fetch_bilibili_hot,
     "youtube": _fetch_youtube_hot,
     "douyin": _fetch_douyin_hot,
     "kuaishou": _fetch_kuaishou_hot,
     "xiaohongshu": _fetch_xiaohongshu_hot,
-    "weibo": _fetch_weibo_hot,
-    "zhihu": _fetch_zhihu_hot,
-    "baidu": _fetch_baidu_hot,
-    "36kr": _fetch_36kr_hot,
-    "ithome": _fetch_ithome_hot,
 }
 
-
-def _platforms_for_filter(platform: str) -> list[HotPlatform]:
-    if platform == "all":
-        return list(HOT_FETCHERS.keys())
-    if platform not in HOT_FETCHERS:
-        raise ValueError(f"不支持的热点平台: {platform}")
-    return [platform]  # type: ignore[list-item]
+HOT_FETCHERS: dict[HotPlatform, Callable[[int], PlatformHotVideoResult]] = {}
+HOT_FETCHERS.update(_DIRECT)
+for _pid in SUPPORTED_HOT_PLATFORMS:
+    if _pid not in HOT_FETCHERS:
+        HOT_FETCHERS[_pid] = _make_newsnow_fetcher(_pid)
 
 
 def _normalize_limit(limit: int) -> int:
@@ -511,22 +478,34 @@ def _normalize_limit(limit: int) -> int:
     return max(1, min(value, 30))
 
 
-def _error_result(platform: HotPlatform, exc: Exception) -> PlatformHotVideoResult:
+def _error_result(platform: str, exc: Exception) -> PlatformHotVideoResult:
     return PlatformHotVideoResult(
-        platform=platform,
+        platform=platform,  # type: ignore[arg-type]
         status="error",
         message=str(exc) or "热点暂时获取失败",
         items=[],
     )
 
 
+def _get_fetcher(platform: str) -> Callable[[int], PlatformHotVideoResult]:
+    """Get a fetcher for any platform. Known platforms use dedicated fetchers,
+    unknown platforms try newsnow API as fallback."""
+    if platform in HOT_FETCHERS:
+        return HOT_FETCHERS[platform]  # type: ignore[index]
+    # Try as a custom newsnow platform ID
+    return _make_newsnow_fetcher(platform)
+
+
 def fetch_hot_videos(platform: str = "all", limit: int = 12) -> list[PlatformHotVideoResult]:
     safe_limit = _normalize_limit(limit)
-    platform_names = _platforms_for_filter(platform)
-    results_by_platform: dict[HotPlatform, PlatformHotVideoResult] = {}
+    if platform == "all":
+        platform_names = list(HOT_FETCHERS.keys())
+    else:
+        platform_names = [platform]
+    results_by_platform: dict[str, PlatformHotVideoResult] = {}
     with ThreadPoolExecutor(max_workers=len(platform_names)) as executor:
         future_to_platform = {
-            executor.submit(HOT_FETCHERS[name], safe_limit): name for name in platform_names
+            executor.submit(_get_fetcher(name), safe_limit): name for name in platform_names
         }
         for future in as_completed(future_to_platform):
             name = future_to_platform[future]
