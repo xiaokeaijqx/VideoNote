@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import {
   BookOpenText,
   CheckCircle2,
@@ -102,9 +102,12 @@ const renderArticleContent = (content: string) => {
   })
 }
 
+const ARTICLE_DRAFT_KEY = 'vm-article-draft'
+
 export default function ArticlesPage() {
   const lang = useVmLang()
   const navigate = useNavigate()
+  const location = useLocation()
   const { modelList, loadEnabledModels } = useModelStore()
   const { tasks, addPendingTask } = useTaskStore()
   
@@ -157,6 +160,25 @@ export default function ArticlesPage() {
         setAllArticleCount(0)
       })
   }, [loadEnabledModels])
+
+  // Pre-fill form from hot article draft (when navigated from /hot-videos)
+  useEffect(() => {
+    if (!(location.state as any)?.createFromHot) return
+    try {
+      const raw = localStorage.getItem(ARTICLE_DRAFT_KEY)
+      if (!raw) return
+      const draft = JSON.parse(raw)
+      if (draft.url) setUrl(draft.url)
+      if (draft.platform) setPlatform(draft.platform as ArticlePlatform)
+      setFormTab('fetch')
+      setSelectedArticleId(null)
+      localStorage.removeItem(ARTICLE_DRAFT_KEY)
+    } catch {
+      /* ignore */
+    }
+    // Clear the navigation state so a page refresh doesn't re-trigger
+    window.history.replaceState({}, '')
+  }, [location.state])
 
   const selectedModel = useMemo(() => {
     return modelList.find(m => m.model_name === modelName) || modelList[0]

@@ -335,3 +335,24 @@ ffmpg*/
 
 # Claude Code local settings
 .claude/
+
+# AI tool local configs (agent/codex/cursor/kilocode/opencode)
+.agent/
+.agents/
+.codex/
+.cursor/
+.kilocode/
+.opencode/
+
+# Vite build cache
+.vite/
+
+# Root-level local data (not covered by /backend/ prefix)
+/video_memo.db
+/vector_db/
+
+# Personal task scratch files
+/tasks.md
+
+# Trellis per-developer workspace
+.trellis/workspace/
