@@ -1,14 +1,21 @@
 import os
 from typing import Optional
 
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
+
+# 健康/诊断类接口：公网前端在用户尚未填访问密码时，也要能判断后端是否可达、
+# 从而正常加载页面（否则启动探测被密码拦成 401，整页卡在「连接中」无法进入设置去填密码）。
+_AUTH_EXEMPT_PATHS = {"/api/sys_check", "/api/sys_health", "/api/deploy_status"}
 
 
 async def verify_web_access_password(
+    request: Request,
     request_web_access_password: Optional[str] = Header(
         None, alias="request-web-access-password"
     )
 ):
+    if request.url.path in _AUTH_EXEMPT_PATHS:
+        return True
     expected = os.getenv("WEB_ACCESS_PASSWORD")
     if expected and request_web_access_password != expected:
         raise HTTPException(status_code=401, detail="访问密码错误或未填写")
