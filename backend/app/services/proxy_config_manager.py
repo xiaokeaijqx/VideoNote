@@ -1,7 +1,7 @@
-import json
 import os
-from pathlib import Path
 from typing import Any, Dict, Optional
+
+from app.db.app_config_dao import load_value, set_value
 
 
 class ProxyConfigManager:
@@ -12,22 +12,17 @@ class ProxyConfigManager:
     这样桌面端/web 用户在设置页填，docker/服务器部署用环境变量兜底。
     """
 
+    # 配置持久化在数据库 app_config 表（key="proxy"）；filepath 仅用于旧文件一次性导入。
+    _KEY = "proxy"
+
     def __init__(self, filepath: str = "config/proxy.json"):
-        self.path = Path(filepath)
-        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self._legacy_path = filepath
 
     def _read(self) -> Dict[str, Any]:
-        if not self.path.exists():
-            return {}
-        try:
-            with self.path.open("r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            return {}
+        return load_value(self._KEY, self._legacy_path, {}) or {}
 
     def _write(self, data: Dict[str, Any]):
-        with self.path.open("w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+        set_value(self._KEY, data)
 
     def get_config(self) -> Dict[str, Any]:
         data = self._read()

@@ -10,6 +10,7 @@ from fastapi import APIRouter, HTTPException, BackgroundTasks, UploadFile, File
 from pydantic import BaseModel, validator, field_validator
 from dataclasses import asdict
 
+from app.db.note_dao import save_note, load_note, get_status
 from app.db.video_task_dao import get_task_by_video
 from app.enmus.exception import NoteErrorEnum
 from app.enmus.note_enums import DownloadQuality
@@ -74,9 +75,8 @@ UPLOAD_DIR = "uploads"
 
 
 def save_note_to_file(task_id: str, note):
-    os.makedirs(NOTE_OUTPUT_DIR, exist_ok=True)
-    with open(os.path.join(NOTE_OUTPUT_DIR, f"{task_id}.json"), "w", encoding="utf-8") as f:
-        json.dump(asdict(note), f, ensure_ascii=False, indent=2)
+    # 笔记正文持久化到数据库 notes 表（原先写 note_results/{task_id}.json）。
+    save_note(task_id, asdict(note))
 
 
 def _persist_prefetched_transcript(task_id: str, transcript: dict) -> None:
@@ -227,22 +227,17 @@ def _pick_markdown_version(markdown_field, version_id: Optional[str]) -> str:
 
 
 def _read_note_json(task_id: str) -> dict:
-    """读笔记 JSON 文件，把 markdown 字段就地归一化成版本数组。文件不存在抛 HTTPException。"""
-    path = os.path.join(NOTE_OUTPUT_DIR, f"{task_id}.json")
-    if not os.path.exists(path):
+    """读笔记，把 markdown 字段就地归一化成版本数组。不存在抛 HTTPException。"""
+    data = load_note(task_id)
+    if data is None:
         raise HTTPException(status_code=404, detail="笔记不存在")
-    with open(path, "r", encoding="utf-8") as f:
-        data = json.load(f)
     data["markdown"] = _normalize_versions(data.get("markdown"))
     return data
 
 
 def _write_note_json(task_id: str, data: dict) -> None:
-    """写回笔记 JSON 文件。markdown 一定是 list 形式。"""
-    path = os.path.join(NOTE_OUTPUT_DIR, f"{task_id}.json")
-    os.makedirs(NOTE_OUTPUT_DIR, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+    """写回笔记到数据库 notes 表。markdown 一定是 list 形式。"""
+    save_note(task_id, data)
 
 
 def _append_version(
@@ -284,12 +279,9 @@ def export_note(task_id: str, format: str = "markdown", version_id: Optional[str
     - format: markdown / pdf / html / word / docx（image / png 暂不支持）
     - version_id: 多版本时指定某一版；不传取最新版（v1 单版兼容旧 str 格式）
     """
-    note_path = os.path.join(NOTE_OUTPUT_DIR, f"{task_id}.json")
-    if not os.path.exists(note_path):
+    note = load_note(task_id)
+    if note is None:
         raise HTTPException(status_code=404, detail="笔记不存在")
-
-    with open(note_path, "r", encoding="utf-8") as f:
-        note = json.load(f)
 
     content = _pick_markdown_version(note.get("markdown"), version_id)
     if not content.strip():
@@ -516,14 +508,12 @@ def generate_note(data: VideoRequest, background_tasks: BackgroundTasks):
 
 @router.get("/task_status/{task_id}")
 def get_task_status(task_id: str):
-    status_path = os.path.join(NOTE_OUTPUT_DIR, f"{task_id}.status.json")
-    result_path = os.path.join(NOTE_OUTPUT_DIR, f"{task_id}.json")
+    # 状态与结果都从数据库 notes 表读（原先读 {task_id}.status.json / {task_id}.json）
+    status_content = get_status(task_id)
+    result_content = load_note(task_id)
 
-    # 优先读状态文件
-    if os.path.exists(status_path):
-        with open(status_path, "r", encoding="utf-8") as f:
-            status_content = json.load(f)
-
+    # 优先读状态
+    if status_content:
         status = status_content.get("status")
         message = status_content.get("message", "")
         paused = bool(status_content.get("paused", False))
@@ -531,9 +521,7 @@ def get_task_status(task_id: str):
 
         if status == TaskStatus.SUCCESS.value:
             # 成功状态的话，继续读取最终笔记内容
-            if os.path.exists(result_path):
-                with open(result_path, "r", encoding="utf-8") as rf:
-                    result_content = json.load(rf)
+            if result_content is not None:
                 return R.success({
                     "status": status,
                     "result": result_content,
@@ -562,10 +550,8 @@ def get_task_status(task_id: str):
             "task_id": task_id
         })
 
-    # 没有状态文件，但有结果
-    if os.path.exists(result_path):
-        with open(result_path, "r", encoding="utf-8") as f:
-            result_content = json.load(f)
+    # 没有状态，但有结果
+    if result_content is not None:
         return R.success({
             "status": TaskStatus.SUCCESS.value,
             "result": result_content,

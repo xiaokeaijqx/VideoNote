@@ -15,11 +15,8 @@ NOTE_OUTPUT_DIR = os.getenv("NOTE_OUTPUT_DIR", "note_results")
 
 
 def _load_note_data(task_id: str) -> Optional[dict]:
-    path = os.path.join(NOTE_OUTPUT_DIR, f"{task_id}.json")
-    if not os.path.exists(path):
-        return None
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
+    from app.db.note_dao import load_note
+    return load_note(task_id)
 
 
 # ── 工具定义（OpenAI function calling 格式）──────────────────────

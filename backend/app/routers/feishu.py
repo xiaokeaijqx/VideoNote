@@ -46,19 +46,16 @@ def push_task_to_feishu(task_id: str, version_id: Optional[str] = None) -> dict:
     被「手动推送」接口与「生成后自动推送」共用。任何失败都抛 FeishuError，
     由调用方决定是返回错误还是仅记日志（自动推送场景不应中断主流程）。
 
-    直接读写原始 JSON（不走 _read/_write_note_json 的版本归一化），避免把
+    直接读写原始笔记内容（不走 _read/_write_note_json 的版本归一化），避免把
     markdown 字符串就地改写成版本数组、抹掉单版本笔记的 model/style 元信息。
     """
-    import json
-
     # 延迟导入避免与 note 路由的循环依赖；note 路由不在模块级 import 本模块
-    from app.routers.note import NOTE_OUTPUT_DIR, _pick_markdown_version
+    from app.routers.note import _pick_markdown_version
+    from app.db.note_dao import load_note, save_note
 
-    path = os.path.join(NOTE_OUTPUT_DIR, f"{task_id}.json")
-    if not os.path.exists(path):
+    data = load_note(task_id)
+    if data is None:
         raise FeishuError(f"笔记不存在或尚未生成完成：{task_id}")
-    with open(path, "r", encoding="utf-8") as f:
-        data = json.load(f)
 
     # _pick_markdown_version 兼容旧 str 与多版本 list 两种格式，仅读取不改写
     content = _pick_markdown_version(data.get("markdown"), version_id)
@@ -82,8 +79,7 @@ def push_task_to_feishu(task_id: str, version_id: Optional[str] = None) -> dict:
         "pushed_at": datetime.now().isoformat(timespec="seconds"),
     }
     data["feishu"] = feishu_info
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+    save_note(task_id, data)
     return feishu_info
 
 

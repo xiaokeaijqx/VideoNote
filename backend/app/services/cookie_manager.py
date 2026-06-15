@@ -1,25 +1,21 @@
-import json
-from pathlib import Path
 from typing import Optional, Dict
+
+from app.db.app_config_dao import load_value, set_value
 
 
 class CookieConfigManager:
+    # 平台 cookie 持久化在数据库 app_config 表（key="downloader"）；
+    # filepath 仅用于把旧的 config/downloader.json 一次性导入。
+    _KEY = "downloader"
+
     def __init__(self, filepath: str = "config/downloader.json"):
-        self.path = Path(filepath)
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        if not self.path.exists():
-            self._write({})
+        self._legacy_path = filepath
 
     def _read(self) -> Dict[str, Dict[str, str]]:
-        try:
-            with self.path.open("r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            return {}
+        return load_value(self._KEY, self._legacy_path, {}) or {}
 
     def _write(self, data: Dict[str, Dict[str, str]]):
-        with self.path.open("w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+        set_value(self._KEY, data)
 
     def get(self, platform: str) -> Optional[str]:
         data = self._read()

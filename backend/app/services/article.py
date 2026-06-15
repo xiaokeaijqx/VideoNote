@@ -10,6 +10,7 @@ from app.article_fetchers.base import ArticleContent, ArticleFetcher
 from app.article_fetchers.generic import GenericArticleFetcher
 from app.article_fetchers.wechat import WechatArticleFetcher
 from app.article_fetchers.xiaohongshu import XiaohongshuArticleFetcher
+from app.db.note_dao import load_note, save_note, set_status
 from app.db.article_dao import (
     create_subscription,
     get_article_item,
@@ -284,12 +285,8 @@ class ArticleService:
     def _content_from_note_result(self, task_id: str) -> str:
         if not task_id:
             return ""
-        result_path = _note_output_dir() / f"{task_id}.json"
-        if not result_path.exists():
-            return ""
-        try:
-            payload = json.loads(result_path.read_text(encoding="utf-8"))
-        except Exception:
+        payload = load_note(task_id)
+        if not payload:
             return ""
         transcript = payload.get("transcript") or {}
         return str(transcript.get("full_text") or "").strip()
@@ -366,17 +363,10 @@ class ArticleService:
             },
             "total_tokens": total_tokens,
         }
-        (_note_output_dir() / f"{task_id}.json").write_text(
-            json.dumps(payload, ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
+        save_note(task_id, payload)
 
     def _update_status(self, task_id: str, status: TaskStatus) -> None:
-        payload = {"status": status.value, "paused": False}
-        (_note_output_dir() / f"{task_id}.status.json").write_text(
-            json.dumps(payload, ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
+        set_status(task_id, {"status": status.value, "paused": False})
 
     def _index_task(self, task_id: str) -> None:
         try:

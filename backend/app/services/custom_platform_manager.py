@@ -6,34 +6,29 @@
   - name:  展示名。
   - match: URL 子串匹配。如 "vimeo.com"。命中即视为该平台。
 """
-import json
 import re
-from pathlib import Path
 from typing import Optional
 
+from app.db.app_config_dao import load_value, set_value
 
-_PATH = Path("config/custom_platforms.json")
+
+# 自定义平台持久化在数据库 app_config 表（key="custom_platforms"，value 是列表）。
+# _LEGACY_PATH 仅用于把旧的 config/custom_platforms.json 一次性导入。
+_KEY = "custom_platforms"
+_LEGACY_PATH = "config/custom_platforms.json"
 _KEY_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{1,31}$")
 
 
 def _read() -> list[dict]:
-    if not _PATH.exists():
-        return []
-    try:
-        data = json.loads(_PATH.read_text(encoding="utf-8"))
-        if isinstance(data, dict):
-            data = data.get("platforms", [])
-        return [p for p in (data or []) if isinstance(p, dict) and p.get("key")]
-    except Exception:
-        return []
+    data = load_value(_KEY, _LEGACY_PATH, [])
+    # 兼容旧文件 {"platforms": [...]} 的形态（导入后首次读到的就是这个 dict）。
+    if isinstance(data, dict):
+        data = data.get("platforms", [])
+    return [p for p in (data or []) if isinstance(p, dict) and p.get("key")]
 
 
 def _write(items: list[dict]) -> None:
-    _PATH.parent.mkdir(parents=True, exist_ok=True)
-    _PATH.write_text(
-        json.dumps({"platforms": items}, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
+    set_value(_KEY, items)
 
 
 def list_all() -> list[dict]:

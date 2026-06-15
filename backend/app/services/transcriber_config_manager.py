@@ -1,28 +1,23 @@
-import json
 import os
-from pathlib import Path
 from typing import Optional, Dict, Any
+
+from app.db.app_config_dao import load_value, set_value
 
 
 class TranscriberConfigManager:
-    """管理转写器配置，存储在 JSON 文件中，支持前端动态修改。"""
+    """管理转写器配置，持久化在数据库 app_config 表（key="transcriber"），支持前端动态修改。"""
+
+    # filepath 仅用于把旧的 config/transcriber.json 一次性导入数据库。
+    _KEY = "transcriber"
 
     def __init__(self, filepath: str = "config/transcriber.json"):
-        self.path = Path(filepath)
-        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self._legacy_path = filepath
 
     def _read(self) -> Dict[str, Any]:
-        if not self.path.exists():
-            return {}
-        try:
-            with self.path.open("r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            return {}
+        return load_value(self._KEY, self._legacy_path, {}) or {}
 
     def _write(self, data: Dict[str, Any]):
-        with self.path.open("w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+        set_value(self._KEY, data)
 
     def get_config(self) -> Dict[str, Any]:
         """获取当前转写器配置，fallback 到环境变量默认值。

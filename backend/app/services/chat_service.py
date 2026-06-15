@@ -8,6 +8,7 @@ from app.models.model_config import ModelConfig
 from app.services.provider import ProviderService
 from app.services.vector_store import VectorStoreManager, NOTE_OUTPUT_DIR
 from app.services.chat_tools import TOOLS, execute_tool
+from app.db.note_dao import load_note
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -15,13 +16,8 @@ logger = get_logger(__name__)
 
 def _load_task_brief(task_id: str) -> dict:
     """读出某篇笔记的标题/平台/URL，用于源卡片展示。失败返回空 dict。"""
-    path = os.path.join(NOTE_OUTPUT_DIR, f"{task_id}.json")
-    if not os.path.exists(path):
-        return {}
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-    except Exception:
+    data = load_note(task_id)
+    if not data:
         return {}
     am = data.get("audio_meta", {}) or {}
     raw = am.get("raw_info", {}) or {}

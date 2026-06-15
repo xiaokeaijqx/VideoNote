@@ -15,6 +15,7 @@ from app.downloaders.bilibili_downloader import BilibiliDownloader
 from app.downloaders.douyin_downloader import DouyinDownloader
 from app.downloaders.local_downloader import LocalDownloader
 from app.downloaders.youtube_downloader import YoutubeDownloader
+from app.db.note_dao import load_note, set_status
 from app.db.video_task_dao import delete_task_by_video, insert_video_task
 from app.enmus.exception import NoteErrorEnum, ProviderErrorEnum
 from app.enmus.task_status_enums import TaskStatus
@@ -511,9 +512,7 @@ class NoteGenerator:
         if not task_id:
             return
 
-        NOTE_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-        status_file = NOTE_OUTPUT_DIR / f"{task_id}.status.json"
-        print(f"写入状态文件: {status_file} 当前状态: {status} paused={paused} cache={cache}")
+        # 任务状态持久化到数据库 notes 表的 status 字段（原先写 {task_id}.status.json）。
         data = {"status": status.value if isinstance(status, TaskStatus) else status, "paused": paused}
         if message:
             data["message"] = message
@@ -521,25 +520,9 @@ class NoteGenerator:
             data["cache"] = cache
 
         try:
-            # First create a temporary file
-            temp_file = status_file.with_suffix('.tmp')
-
-            # Write to temporary file
-            with temp_file.open('w', encoding='utf-8') as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
-
-            # Atomic rename operation
-            temp_file.replace(status_file)
-
-            print(f"状态文件写入成功: {status_file}")
+            set_status(task_id, data)
         except Exception as e:
-            logger.error(f"写入状态文件失败 (task_id={task_id})：{e}")
-            # Try to write error to file directly as fallback
-            try:
-                with status_file.open('w', encoding='utf-8') as f:
-                    f.write(f"Error writing status: {str(e)}")
-            except:
-                logger.error(f"写入错误  {e}")
+            logger.error(f"写入任务状态失败 (task_id={task_id})：{e}")
 
     def _handle_exception(self, task_id, exc):
         logger.error(f"任务异常 (task_id={task_id})", exc_info=True)
@@ -896,13 +879,12 @@ class NoteGenerator:
         - 跳过下载、转写、截图替换等重型环节
         - 只调 LLM 拿一段新 markdown 文本返回（由路由层负责追加到版本列表）
         """
-        note_path = NOTE_OUTPUT_DIR / f"{task_id}.json"
-        if not note_path.exists():
+        data = load_note(task_id)
+        if data is None:
             raise NoteError(
                 code=NoteErrorEnum.PLATFORM_NOT_SUPPORTED.code,
                 message=f"笔记不存在：{task_id}",
             )
-        data = json.loads(note_path.read_text(encoding="utf-8"))
 
         audio_meta_d = data.get("audio_meta") or {}
         transcript_d = data.get("transcript") or {}

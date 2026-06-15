@@ -99,9 +99,12 @@ def test_generate_from_url_saves_note_json(tmp_path, monkeypatch):
         task_id="task-1",
     )
 
-    saved = json.loads((tmp_path / "notes" / "task-1.json").read_text(encoding="utf-8"))
-    status = json.loads((tmp_path / "notes" / "task-1.status.json").read_text(encoding="utf-8"))
+    # 笔记正文与状态现在存数据库 notes 表（原先是 note_results/{task_id}.json 文件）
+    import app.db.note_dao as note_dao
+    saved = note_dao.load_note("task-1")
+    status = note_dao.get_status("task-1")
     assert result["task_id"] == "task-1"
+    assert saved is not None
     assert saved["markdown"] == "# 总结\n\n- 要点"
     assert saved["transcript"]["full_text"] == "正文内容"
     assert saved["audio_meta"]["title"] == "文章标题"

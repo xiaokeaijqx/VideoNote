@@ -6,6 +6,7 @@ from typing import Optional
 import chromadb
 from chromadb.config import Settings
 
+from app.db.note_dao import load_note
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -117,13 +118,10 @@ class VectorStoreManager:
 
     def index_task(self, task_id: str) -> None:
         """读取笔记结果并建立向量索引。"""
-        result_path = os.path.join(NOTE_OUTPUT_DIR, f"{task_id}.json")
-        if not os.path.exists(result_path):
-            logger.warning(f"笔记文件不存在，跳过索引: {result_path}")
+        note_data = load_note(task_id)
+        if note_data is None:
+            logger.warning(f"笔记不存在，跳过索引: {task_id}")
             return
-
-        with open(result_path, "r", encoding="utf-8") as f:
-            note_data = json.load(f)
 
         markdown = note_data.get("markdown", "")
         transcript = note_data.get("transcript", {})
