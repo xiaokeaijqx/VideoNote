@@ -155,15 +155,29 @@ class FeishuService:
         content = prepared.encode("utf-8")
 
         folder_token = self.folder_token or self._root_folder_token()
-        file_token = self._upload_media(safe_title, content, folder_token)
-        ticket = self._create_import_task(safe_title, file_token, folder_token)
-        result = self._poll_import_task(ticket)
 
-        token = result.get("token") or ""
-        doc_type = result.get("type") or "docx"
-        url = result.get("url") or self._fallback_doc_url(doc_type, token)
-        logger.info(f"飞书导入成功：{safe_title} -> {url}")
-        return {"url": url, "token": token, "type": doc_type, "title": safe_title}
+        # rpc_failed 多为飞书侧瞬时错误：整条导入流程自动重试几次。
+        last_exc: Optional[FeishuError] = None
+        for attempt in range(3):
+            try:
+                file_token = self._upload_media(safe_title, content, folder_token)
+                ticket = self._create_import_task(safe_title, file_token, folder_token)
+                result = self._poll_import_task(ticket)
+                token = result.get("token") or ""
+                doc_type = result.get("type") or "docx"
+                url = result.get("url") or self._fallback_doc_url(doc_type, token)
+                logger.info(f"飞书导入成功：{safe_title} -> {url}")
+                return {"url": url, "token": token, "type": doc_type, "title": safe_title}
+            except FeishuError as exc:
+                last_exc = exc
+                if "rpc_failed" in (exc.message or "") and attempt < 2:
+                    logger.warning(f"飞书导入 rpc_failed，第 {attempt + 1} 次重试…")
+                    time.sleep(2)
+                    continue
+                raise
+        if last_exc:
+            raise last_exc
+        raise FeishuError("飞书导入失败：未知错误")
 
     # ─── 导入流程内部步骤 ─────────────────────────────────────────────────────
     def _upload_media(self, title: str, content: bytes, folder_token: str) -> str:
@@ -275,19 +289,21 @@ class FeishuService:
 
     @staticmethod
     def _prepare_markdown(markdown: str, image_base_url: Optional[str]) -> str:
-        """把 /static、/uploads 开头的相对图片链接补成绝对地址，便于飞书抓图。
+        """处理站内相对图片（/static、/uploads）：
 
-        飞书导入时按 http(s) 抓取图片，相对路径它无法解析；补成后端绝对地址后，
-        仅当后端对飞书服务端可达（公网部署）时图片才会真正落进文档，本机/内网下
-        飞书抓不到会自动跳过该图，不影响正文导入。
+        - 若 image_base_url 是飞书服务端能抓到的「公网 http(s)」地址 → 补成绝对地址，图片入文档。
+        - 若是本机/内网（localhost / 127.* / 内网段）或为空 → 飞书根本抓不到，直接**删掉**这些图片，
+          只保留正文。避免飞书导入时为抓一张抓不到的图而整单失败（rpc_failed）。
         """
-        if not image_base_url:
-            return markdown
-        base = image_base_url.rstrip("/")
+        base = (image_base_url or "").rstrip("/")
+        public = bool(re.match(r"^https?://", base)) and not re.search(
+            r"://(localhost|127\.|0\.0\.0\.0|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|\[?::1)",
+            base,
+        )
 
         def _repl(m: "re.Match[str]") -> str:
             alt, path = m.group(1), m.group(2)
-            return f"![{alt}]({base}{path})"
+            return f"![{alt}]({base}{path})" if public else ""
 
-        # 仅替换 ](/static...) 与 ](/uploads...) 这类站内相对图片
+        # 仅处理 ](/static...) 与 ](/uploads...) 这类站内相对图片
         return re.sub(r"!\[([^\]]*)\]\((/(?:static|uploads)/[^)]+)\)", _repl, markdown)
