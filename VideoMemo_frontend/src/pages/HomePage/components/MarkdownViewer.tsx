@@ -27,6 +27,7 @@ import {
   type ExportFormat,
   type NoteVersion,
 } from '@/services/note.ts'
+import { pushNoteToFeishu } from '@/services/feishu.ts'
 import MDEditor from '@uiw/react-md-editor'
 import {
   Dialog,
@@ -447,6 +448,7 @@ function createMarkdownComponents(
 
 const MarkdownViewer: FC<MarkdownViewerProps> = memo(({ status }) => {
   const [copied, setCopied] = useState(false)
+  const [feishuPushing, setFeishuPushing] = useState(false)
   const [currentVerId, setCurrentVerId] = useState<string>('')
   const [selectedContent, setSelectedContent] = useState<string>('')
   const [modelName, setModelName] = useState<string>('')
@@ -694,6 +696,24 @@ const MarkdownViewer: FC<MarkdownViewerProps> = memo(({ status }) => {
       setTimeout(() => setCopied(false), 2000)
     } catch (e) {
       toast.error('复制失败')
+    }
+  }
+  const handlePushFeishu = async () => {
+    const task = getCurrentTask()
+    if (!task || feishuPushing) return
+    setFeishuPushing(true)
+    const toastId = toast.loading('正在推送到飞书…')
+    try {
+      const info = await pushNoteToFeishu(task.id, currentVerId || undefined)
+      updateTaskContent(task.id, { feishu: info })
+      toast.success('已推送到飞书文档', { id: toastId })
+    } catch (e: any) {
+      // 拦截器已 suppressToast，这里统一展示后端返回的错误原因
+      toast.error(e?.msg || e?.message || '推送失败，请检查「设置 → 飞书推送」配置', {
+        id: toastId,
+      })
+    } finally {
+      setFeishuPushing(false)
     }
   }
   const alertButton = {
@@ -1007,6 +1027,9 @@ const MarkdownViewer: FC<MarkdownViewerProps> = memo(({ status }) => {
         onEdit={handleEdit}
         onRepolish={handleOpenRepolish}
         onDeleteVersion={handleDeleteVersion}
+        onPushFeishu={handlePushFeishu}
+        feishuUrl={currentTask?.feishu?.url}
+        feishuPushing={feishuPushing}
         createAt={createTime}
         showChat={showChat}
         setShowChat={setShowChat}

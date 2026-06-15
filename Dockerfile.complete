@@ -79,6 +79,16 @@ ENV PATH="/usr/bin:${PATH}"
 ENV HF_ENDPOINT=https://hf-mirror.com
 ENV PYTHONUNBUFFERED=1
 
+# 飞书「推送方式 = lark-cli / auto」时需要官方 lark CLI（npm 包 @larksuite/cli，二进制名 lark-cli）。
+# 走 REST 直连推送则用不到，可按需删除本段以瘦身镜像。凭证由后端运行时经环境变量注入，不写死。
+ARG NPM_REGISTRY=https://registry.npmmirror.com
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends nodejs npm && \
+    npm config set registry ${NPM_REGISTRY} && \
+    npm install -g @larksuite/cli && \
+    rm -rf /var/lib/apt/lists/* /root/.npm && \
+    (lark-cli --version || true)
+
 # 复制 Python 依赖
 COPY --from=backend-builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 COPY --from=backend-builder /usr/local/bin /usr/local/bin

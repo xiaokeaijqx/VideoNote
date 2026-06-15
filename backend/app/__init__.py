@@ -15,7 +15,7 @@ async def verify_web_access_password(
     return True
 
 def create_app(lifespan) -> FastAPI:
-    from .routers import note, notification, provider, model, config, chat, flashcard, hot_videos, article, trend_subscription
+    from .routers import note, notification, provider, model, config, chat, flashcard, hot_videos, article, trend_subscription, feishu
     from .utils.response import ResponseWrapper as R
 
     app = FastAPI(title="VideoMemo",lifespan=lifespan)
@@ -35,5 +35,6 @@ def create_app(lifespan) -> FastAPI:
     app.include_router(article.router, prefix="/api", dependencies=protected)
     app.include_router(trend_subscription.router, prefix="/api", dependencies=protected)
     app.include_router(notification.router, prefix="/api", dependencies=protected)
+    app.include_router(feishu.router, prefix="/api", dependencies=protected)
 
     return app

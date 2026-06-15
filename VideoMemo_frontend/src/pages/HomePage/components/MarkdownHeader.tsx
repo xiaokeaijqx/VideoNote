@@ -14,6 +14,8 @@ import {
   Pencil,
   Sparkles,
   Trash2,
+  Send,
+  ExternalLink,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { Button } from '@/components/ui/button'
@@ -54,6 +56,10 @@ interface NoteHeaderProps {
   onEdit?: () => void
   onRepolish?: () => void
   onDeleteVersion?: (verId: string) => void
+  /** 推送到飞书文档 */
+  onPushFeishu?: () => void
+  feishuUrl?: string
+  feishuPushing?: boolean
 }
 
 const VERSION_SOURCE_LABEL: Record<string, string> = {
@@ -128,6 +134,9 @@ export function MarkdownHeader({
   onEdit,
   onRepolish,
   onDeleteVersion,
+  onPushFeishu,
+  feishuUrl,
+  feishuPushing,
 }: NoteHeaderProps) {
   const [copied, setCopied] = useState(false)
   const [exportOpen, setExportOpen] = useState(false)
@@ -384,6 +393,49 @@ export function MarkdownHeader({
             </div>
           )}
         </div>
+        {onPushFeishu && (
+          <>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    onClick={onPushFeishu}
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 px-2"
+                    disabled={feishuPushing}
+                  >
+                    <Send className="mr-1.5 h-4 w-4" />
+                    <span className="text-sm">
+                      {feishuPushing ? '推送中…' : feishuUrl ? '重新推送' : '推送飞书'}
+                    </span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {feishuUrl ? '重新推送一份到飞书文档' : '把当前笔记推送到飞书文档'}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            {feishuUrl && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <a
+                      href={feishuUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-sm font-medium text-emerald-600 transition-colors hover:bg-emerald-50"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                      <span>打开飞书</span>
+                    </a>
+                  </TooltipTrigger>
+                  <TooltipContent>在飞书中打开已生成的文档</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+          </>
+        )}
         {setShowChat && (
           <TooltipProvider>
             <Tooltip>

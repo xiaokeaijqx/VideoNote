@@ -19,6 +19,17 @@ RUN rm -f /etc/apt/sources.list && \
 ENV PATH="/usr/bin:${PATH}"
 ENV HF_ENDPOINT=https://hf-mirror.com
 
+# 飞书「推送方式 = lark-cli / auto」时需要官方 lark CLI（npm 包 @larksuite/cli，二进制名 lark-cli）。
+# 走 REST 直连推送则用不到，可按需删除本段以瘦身镜像。
+# 凭证通过 LARK_APP_ID / LARK_APP_SECRET 环境变量在运行时注入（由后端调用时传入），此处不写死。
+ARG NPM_REGISTRY=https://registry.npmmirror.com
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends nodejs npm && \
+    npm config set registry ${NPM_REGISTRY} && \
+    npm install -g @larksuite/cli && \
+    rm -rf /var/lib/apt/lists/* /root/.npm && \
+    (lark-cli --version || true)
+
 WORKDIR /app
 
 # 先复制 requirements.txt 利用层缓存

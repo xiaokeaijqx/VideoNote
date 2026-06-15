@@ -155,6 +155,14 @@ def run_note_task(task_id: str, video_url: str, platform: str, quality: Download
     except Exception as e:
         logger.warning(f"向量索引失败（不影响笔记）: {e}")
 
+    # 生成后自动推送到飞书文档（仅在「设置 → 飞书推送」开启了自动推送时触发），
+    # 内部已吞掉自身异常，这里再兜一层防止 import 失败影响主流程
+    try:
+        from app.routers.feishu import auto_push_if_enabled
+        auto_push_if_enabled(task_id)
+    except Exception as e:
+        logger.warning(f"飞书自动推送调度失败（不影响笔记）: {e}")
+
 
 @router.post('/delete_task')
 def delete_task(data: RecordRequest):

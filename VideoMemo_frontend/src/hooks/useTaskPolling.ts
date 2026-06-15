@@ -38,6 +38,7 @@ export const useTaskPolling = (interval = 3000) => {
               transcript: result.transcript,
               audioMeta: result.audio_meta,
               totalTokens: result.total_tokens,
+              feishu: result.feishu, // 生成后自动推送飞书的结果（未推送则为 undefined）
               paused: false,
               cache,
               completedAt: new Date().toISOString(), // 补记完成时间

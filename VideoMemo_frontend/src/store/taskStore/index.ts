@@ -57,6 +57,14 @@ export interface Task {
   cache?: string
   createdAt: string
   completedAt?: string // 任务变为 SUCCESS 的时间（由轮询补记）
+  // 飞书文档推送结果（手动推送或生成后自动推送写回）
+  feishu?: {
+    url: string
+    token: string
+    type?: string
+    title?: string
+    pushed_at: string
+  }
   formData: {
     video_url: string
     link: undefined | boolean

@@ -5,6 +5,7 @@ import {
   Info,
   Activity,
   KeyRound,
+  Send,
 } from 'lucide-react'
 import MenuBar, { IMenuProps } from '@/pages/SettingPage/components/menuBar.tsx'
 
@@ -27,6 +28,12 @@ const Menu = () => {
       name: '下载配置',
       icon: <HardDriveDownload />,
       path: '/settings/download',
+    },
+    {
+      id: 'feishu',
+      name: '飞书推送',
+      icon: <Send />,
+      path: '/settings/feishu',
     },
     {
       id: 'access-password',
