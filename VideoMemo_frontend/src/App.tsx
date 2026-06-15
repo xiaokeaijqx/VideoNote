@@ -43,6 +43,7 @@ const Downloader = lazy(() => import('@/pages/SettingPage/Downloader.tsx'))
 const DownloaderForm = lazy(() => import('@/components/Form/DownloaderForm/Form.tsx'))
 const TranscriberPage = lazy(() => import('@/pages/SettingPage/transcriber.tsx'))
 const FeishuPage = lazy(() => import('@/pages/SettingPage/Feishu.tsx'))
+const LocalDownloaderPage = lazy(() => import('@/pages/SettingPage/LocalDownloader.tsx'))
 const AccessPassword = lazy(() => import('@/pages/SettingPage/AccessPassword.tsx'))
 const NotFoundPage = lazy(() => import('@/pages/NotFoundPage'))
 
@@ -116,6 +117,7 @@ function App() {
                   </Route>
                   <Route path="transcriber" element={<TranscriberPage />} />
                   <Route path="feishu" element={<FeishuPage />} />
+                  <Route path="local-downloader" element={<LocalDownloaderPage />} />
                   <Route path="access-password" element={<AccessPassword />} />
                   <Route path="monitor" element={<Monitor />}></Route>
                   <Route path="about" element={<AboutPage />}></Route>

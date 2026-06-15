@@ -16,6 +16,7 @@ import {
   Palette,
   Flame,
   KeyRound,
+  Laptop,
   Send,
   Newspaper,
   Radio,
@@ -68,6 +69,12 @@ const settingsNav: NavItem[] = [
     path: '/settings/download',
     icon: <HardDriveDownload />,
     zhKey: 'downloader',
+  },
+  {
+    id: 'local-downloader',
+    path: '/settings/local-downloader',
+    icon: <Laptop />,
+    zhKey: 'localDownloader',
   },
   {
     id: 'feishu',
@@ -199,8 +206,10 @@ const MainLayout: FC = () => {
           ? 'transcriber'
           : seg === 'download'
             ? 'downloader'
-            : seg === 'feishu'
-              ? 'feishu'
+            : seg === 'local-downloader'
+              ? 'localDownloader'
+              : seg === 'feishu'
+                ? 'feishu'
               : seg === 'access-password'
               ? 'accessPassword'
               : seg === 'monitor'
