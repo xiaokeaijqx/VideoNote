@@ -52,7 +52,8 @@ def _safe_filename(name: str, fallback: str = "video") -> str:
 def ytdlp_download(url: str, tmpdir: str, want_video: bool, cookies: str | None):
     """下载到 tmpdir，固定文件名 media.*，并写 info.json 拿真实标题。返回 (文件路径, 标题)。"""
     out_tmpl = os.path.join(tmpdir, "media.%(ext)s")
-    cmd = ["yt-dlp", "--no-playlist", "--write-info-json", "-o", out_tmpl]
+    # 用 `python -m yt_dlp` 而非裸 `yt-dlp`，保证用的是当前环境里的 yt-dlp（venv / 镜像皆可）。
+    cmd = [sys.executable, "-m", "yt_dlp", "--no-playlist", "--write-info-json", "-o", out_tmpl]
     if cookies:
         cmd += ["--cookies", cookies]
     if want_video:
