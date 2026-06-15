@@ -12,6 +12,7 @@ from dataclasses import asdict
 
 from app.db.note_dao import save_note, load_note, get_status
 from app.db.video_task_dao import get_task_by_video
+from app.services import external_download
 from app.enmus.exception import NoteErrorEnum
 from app.enmus.note_enums import DownloadQuality
 from app.exceptions.note import NoteError
@@ -493,6 +494,39 @@ def generate_note(data: VideoRequest, background_tasks: BackgroundTasks):
                 _persist_prefetched_transcript(task_id, data.prefetched_transcript)
             except Exception as e:
                 logger.warning(f"写入预取字幕失败 (task_id={task_id}): {e}")
+
+        # 外部下载：某些平台（默认 YouTube）机房 IP 被风控，改交给跑在住宅 IP 上的家用 worker。
+        # 没有预取字幕（确实要下载）且命中外部下载平台时，入队等 worker 拉取，不在服务器本地下。
+        if not data.prefetched_transcript and external_download.should_external(data.platform):
+            if not external_download.worker_alive():
+                return R.error(
+                    msg="本地下载器未运行：请在你自己的机器上启动 downloader-worker 守护进程后重试"
+                        "（见 downloader-worker/README）。",
+                    code=300103,
+                )
+            from app.db import download_job_dao
+            download_job_dao.create_job(
+                task_id=task_id,
+                url=data.video_url,
+                platform=data.platform,
+                want_video=bool(data.screenshot),
+                params={
+                    "quality": data.quality.value if hasattr(data.quality, "value") else data.quality,
+                    "link": data.link,
+                    "screenshot": data.screenshot,
+                    "model_name": data.model_name,
+                    "provider_id": data.provider_id,
+                    "format": data.format,
+                    "style": data.style,
+                    "extras": data.extras,
+                    "video_understanding": data.video_understanding,
+                    "video_interval": data.video_interval,
+                    "grid_size": data.grid_size,
+                },
+            )
+            NoteGenerator()._update_status(task_id, TaskStatus.DOWNLOADING, message="等待本地下载器获取…")
+            logger.info(f"任务 {task_id} 走外部下载，已入队等待家用 worker")
+            return R.success({"task_id": task_id})
 
         background_tasks.add_task(run_note_task, task_id, data.video_url, data.platform, data.quality, data.link,
                                   data.screenshot, data.model_name, data.provider_id, data.format, data.style,

@@ -4,6 +4,7 @@ import os
 
 from app.db.models.app_config import AppConfig
 from app.db.models.articles import ArticleItem, ArticleSubscription, ArticleSubscriptionItem
+from app.db.models.download_job import DownloadJob
 from app.db.models.models import Model
 from app.db.models.note import Note
 from app.db.models.providers import Provider
