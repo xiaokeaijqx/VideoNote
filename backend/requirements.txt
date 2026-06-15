@@ -77,6 +77,9 @@ prometheus_client==0.21.1
 prompt_toolkit==3.0.50
 propcache==0.3.1
 protobuf==6.30.2
+# PostgreSQL 驱动：DATABASE_URL 指向 Postgres（如 Supabase）时由 SQLAlchemy 使用；
+# 用 SQLite 时不加载，留着无副作用。
+psycopg2-binary==2.9.10
 pycparser==2.22
 pycryptodomex==3.22.0
 pydantic==2.11.2

@@ -14,22 +14,13 @@ def init_db():
     engine = get_engine()
 
     Base.metadata.create_all(bind=engine)
-    _ensure_model_columns(engine)
     _ensure_article_content_text(engine)
 
 
-def _ensure_model_columns(engine):
-    inspector = inspect(engine)
-    table_names = inspector.get_table_names()
-    if "models" not in table_names:
-        return
-
-    columns = {column["name"] for column in inspector.get_columns("models")}
-    if "supports_multimodal" not in columns:
-        with engine.begin() as conn:
-            conn.execute(
-                text("ALTER TABLE models ADD COLUMN supports_multimodal BOOLEAN NOT NULL DEFAULT 0")
-            )
+# 注：原 _ensure_model_columns 为 models.supports_multimodal 做的迁移已删除——
+# 该列在「drop multimodal」重构后已不再被 ORM 使用（纯遗留），且它的
+# `ALTER ... BOOLEAN NOT NULL DEFAULT 0` 在 Postgres 上会因 boolean 默认值类型不符直接报错。
+# 已有 SQLite 库里残留的该列无害，保持不动即可。
 
 
 def _ensure_article_content_text(engine):
