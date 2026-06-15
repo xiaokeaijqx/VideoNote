@@ -95,6 +95,8 @@ const LocalDownloader = () => {
     }
   }
 
+  const curlCmd =
+    'curl -fsSL https://raw.githubusercontent.com/xiaokeaijqx/VideoNote/main/downloader-worker/install.sh | sh'
   const installCmd = 'cd downloader-worker && sh install.sh'
   const logCmd = 'tail -f ~/Library/Logs/videonote-worker.log'
   const restartCmd = 'launchctl kickstart -k "gui/$(id -u)/com.videonote.worker"'
@@ -232,12 +234,15 @@ const LocalDownloader = () => {
             提示你输入访问密码、装好并启动、还会验证是否上线</b>。无需手动配置。
           </div>
 
-          <div style={{ fontSize: 13, fontWeight: 600 }}>① 安装并启动（二选一）</div>
+          <div style={{ fontSize: 13, fontWeight: 600 }}>① 安装并启动</div>
           <div className="vm-field-hint" style={{ margin: '4px 0', whiteSpace: 'normal' }}>
-            · Finder 里直接<b>双击 <code>downloader-worker/install.command</code></b>；或
-            <br />· 终端执行下面这条：
+            <b>无需 clone 仓库</b>，终端跑这一条即可（自动下载脚本、检测环境、问你密码、装好并启动）：
           </div>
-          <CodeBlock code={installCmd} />
+          <CodeBlock code={curlCmd} />
+          <div className="vm-field-hint" style={{ margin: '6px 0', whiteSpace: 'normal' }}>
+            已有本仓库的话，也可在 Finder 双击 <code>downloader-worker/install.command</code>，
+            或终端 <code>{installCmd}</code>。
+          </div>
 
           <div style={{ fontSize: 13, fontWeight: 600, marginTop: 12 }}>② 看运行日志（确认在线）</div>
           <CodeBlock code={logCmd} />

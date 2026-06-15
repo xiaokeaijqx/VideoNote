@@ -31,7 +31,10 @@ export default defineConfig(({ mode }) => {
   const appVersion = env.VITE_APP_VERSION || process.env.VITE_APP_VERSION || readAppVersion()
 
   return {
-    base: './',
+    // 桌面端(Tauri, --mode tauri)从 file:// 加载、用 HashRouter，需相对 base './'；
+    // Web(BrowserRouter)必须用绝对 '/'，否则 /settings/xxx 深链刷新时 ./assets 会
+    // 相对成 /settings/assets 而 404 → 整页白屏。
+    base: mode === 'tauri' ? './' : '/',
     define: {
       __APP_VERSION__: JSON.stringify(appVersion),
     },

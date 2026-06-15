@@ -3,7 +3,10 @@
 # 用法：在仓库 downloader-worker/ 目录执行  sh install.sh  （或双击 install.command）
 set -e
 
-WORKER_DIR="$(cd "$(dirname "$0")" && pwd)"
+# 既能在仓库里跑（sh install.sh），也能裸下载/管道跑（curl ... | sh）：
+# 后者没有同目录的 push_note.py，会从 GitHub raw 拉取。
+WORKER_DIR="$(cd "$(dirname "$0")" 2>/dev/null && pwd || echo /tmp)"
+RAW_BASE="${WORKER_RAW_BASE:-https://raw.githubusercontent.com/xiaokeaijqx/VideoNote/main/downloader-worker}"
 APP_DIR="$HOME/.videonote-worker"
 VENV="$APP_DIR/venv"
 PY="$VENV/bin/python"
@@ -47,9 +50,10 @@ fi
 # ── 2. 输入连接信息 ───────────────────────────────────────────
 echo "[2/5] 连接信息"
 DEFAULT_BASE="https://jackmouse-videonote.hf.space/api"
-printf "  后端 API 地址 [%s]: " "$DEFAULT_BASE"; read BASE || true
+# 从 /dev/tty 读，保证 `curl ... | sh`（stdin 是脚本管道）时也能交互输入
+printf "  后端 API 地址 [%s]: " "$DEFAULT_BASE"; read BASE </dev/tty 2>/dev/null || true
 [ -z "$BASE" ] && BASE="$DEFAULT_BASE"
-printf "  访问密码（输入不显示）: "; stty -echo 2>/dev/null || true; read PW || true; stty echo 2>/dev/null || true; echo
+printf "  访问密码（输入不显示）: "; stty -echo </dev/tty 2>/dev/null || true; read PW </dev/tty 2>/dev/null || true; stty echo </dev/tty 2>/dev/null || true; echo
 if [ -z "$PW" ]; then echo "  ✗ 没输入密码，已取消。"; exit 1; fi
 
 # ── 3. 装独立环境 ─────────────────────────────────────────────
@@ -57,7 +61,12 @@ echo "[3/5] 安装运行环境（独立 venv + yt-dlp）…"
 mkdir -p "$APP_DIR"
 [ -x "$PY" ] || python3 -m venv "$VENV"
 "$PY" -m pip install -q -U pip yt-dlp requests
-cp "$WORKER_DIR/push_note.py" "$APP_DIR/push_note.py"
+if [ -f "$WORKER_DIR/push_note.py" ]; then
+  cp "$WORKER_DIR/push_note.py" "$APP_DIR/push_note.py"
+else
+  echo "  … 下载 push_note.py …"
+  curl -fsSL "$RAW_BASE/push_note.py" -o "$APP_DIR/push_note.py" || { echo "  ✗ 下载 push_note.py 失败（检查网络）"; exit 1; }
+fi
 
 printf 'HF_API_BASE="%s"\n' "$BASE" > "$HOME/.videonote-worker.env"
 printf '%s' "$PW" > "$HOME/.videonote-worker-password"
