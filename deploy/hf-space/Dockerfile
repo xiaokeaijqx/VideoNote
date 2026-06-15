@@ -6,20 +6,28 @@
 #   /backend/...    ← 从本项目复制整个 backend 目录过去
 # 然后 git push 到 Space，HF 会构建本文件（COPY 路径相对 Space 根目录）。
 #
-# 镜像故意精简：只装 ffmpeg + 后端依赖，默认走 REST 飞书推送，不装 lark-cli。
+# 镜像：ffmpeg + 后端依赖 + 官方 lark CLI（飞书「lark CLI / 自动」推送用）。
 # 数据库用外接 Postgres（Supabase），通过 DATABASE_URL Secret 注入。
 ARG BASE_REGISTRY=docker.io
 FROM ${BASE_REGISTRY}/library/python:3.11-slim
 
-# HF 在 huggingface.co 自家基础设施上构建/运行：用官方 PyPI 与默认 HF 端点，
+# HF 在 huggingface.co 自家基础设施上构建/运行：用官方 PyPI / npm 源，
 # 不要用国内镜像（那会更慢甚至失败）。
 ARG PIP_INDEX=https://pypi.org/simple
 
 # fonts-liberation 提供与 Arial 度量兼容的 LiberationSans，替代仓库里的 arial.ttf
 # （HF git 不收二进制，故字体不进仓库，改由镜像在构建时提供）
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends ffmpeg curl fonts-liberation && \
+    apt-get install -y --no-install-recommends ffmpeg curl fonts-liberation ca-certificates gnupg && \
     rm -rf /var/lib/apt/lists/*
+
+# 飞书「推送方式 = lark CLI / 自动」时需要官方 lark CLI（npm 包 @larksuite/cli，二进制 lark-cli）。
+# slim 自带 Node 太旧，用 NodeSource 装 Node 20。走 REST 直连推送则用不到本段。
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get update && apt-get install -y --no-install-recommends nodejs && \
+    npm install -g @larksuite/cli && \
+    rm -rf /var/lib/apt/lists/* /root/.npm && \
+    (lark-cli --version || true)
 
 ENV PYTHONUNBUFFERED=1 \
     BACKEND_HOST=0.0.0.0 \
