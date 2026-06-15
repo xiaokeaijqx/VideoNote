@@ -15,8 +15,10 @@ FROM ${BASE_REGISTRY}/library/python:3.11-slim
 # 不要用国内镜像（那会更慢甚至失败）。
 ARG PIP_INDEX=https://pypi.org/simple
 
+# fonts-liberation 提供与 Arial 度量兼容的 LiberationSans，替代仓库里的 arial.ttf
+# （HF git 不收二进制，故字体不进仓库，改由镜像在构建时提供）
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends ffmpeg curl && \
+    apt-get install -y --no-install-recommends ffmpeg curl fonts-liberation && \
     rm -rf /var/lib/apt/lists/*
 
 ENV PYTHONUNBUFFERED=1 \
@@ -39,7 +41,8 @@ COPY backend /app
 
 # 预建可写目录（HF 容器以 root 运行，这些目录是临时盘——重启会清空，
 # 所以结构化数据务必走外接 DATABASE_URL；笔记/截图属临时数据，后续可再迁对象存储）
-RUN mkdir -p /app/data/note_results /app/static/screenshots /app/config
+RUN mkdir -p /app/data/note_results /app/static/screenshots /app/config /app/fonts && \
+    cp /usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf /app/fonts/arial.ttf
 
 EXPOSE 8483
 CMD ["python", "main.py"]
