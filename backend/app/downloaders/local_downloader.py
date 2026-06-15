@@ -119,19 +119,29 @@ class LocalDownloader(Downloader, ABC):
         title, _ = os.path.splitext(file_name)
         print(title, file_name,video_url)
         file_path=self.convert_to_mp3(video_url)
-        cover_path = self.extract_cover(video_url)
-        cover_url = save_cover_to_static(cover_path)
+        # 纯音频文件没有视频流，extract_cover 会失败：容错跳过封面，别让整条任务崩。
+        # （下载 worker 在不需要截图时只上传音频 mp3，会走到这里。）
+        cover_url = ""
+        try:
+            cover_path = self.extract_cover(video_url)
+            cover_url = save_cover_to_static(cover_path)
+        except Exception as e:
+            print(f"提取封面失败（可能是纯音频文件），跳过封面: {e}")
+
+        # need_video=True（要截图）时，把上传的视频原文件作为 video_path 传下去，
+        # 让后续截图环节能从这个本地视频取帧；纯音频则为 None。
+        video_path = video_url if need_video and os.path.exists(video_url) else None
 
         print('file——path',file_path)
         return AudioDownloadResult(
             file_path=file_path,
             title=title,
             duration=0,  # 可选：后续加上读取时长
-            cover_url=cover_url,  # 暂无封面
+            cover_url=cover_url,
             platform="local",
             video_id=title,
             raw_info={
                 'path':  file_path
             },
-            video_path=None
+            video_path=video_path
         )
