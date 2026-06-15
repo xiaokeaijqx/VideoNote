@@ -98,6 +98,8 @@ CORS_ORIGIN_REGEX = (
     r"|^http://(localhost|127\.0\.0\.1)(:\d+)?$"
     r"|^tauri://localhost$"
     r"|^https?://tauri\.localhost$"
+    # Cloudflare Pages：<project>.pages.dev 及其预览子域 <hash>.<project>.pages.dev
+    r"|^https://([a-z0-9-]+\.)*pages\.dev$"
 )
 
 app.add_middleware(

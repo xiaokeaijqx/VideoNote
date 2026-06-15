@@ -1,0 +1,3 @@
+# Cloudflare Pages SPA 回退：非真实文件的路径一律交给 index.html，由前端路由处理。
+# Pages 会先匹配真实静态资源，匹配不到才走这条，所以不影响 js/css/图片。
+/*    /index.html   200
