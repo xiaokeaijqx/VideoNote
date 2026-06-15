@@ -147,6 +147,7 @@ export const VM_STRINGS: Dict = {
   aiModels: { zh: 'AI 模型', en: 'AI models' },
   transcriber: { zh: '音频转写', en: 'Transcriber' },
   downloader: { zh: '下载配置', en: 'Downloader' },
+  feishu: { zh: '飞书推送', en: 'Feishu' },
   accessPassword: { zh: '访问密码', en: 'Access password' },
   monitor: { zh: '部署监控', en: 'Monitor' },
   about: { zh: '关于', en: 'About' },
