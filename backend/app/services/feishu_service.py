@@ -56,6 +56,8 @@ class FeishuService:
         self.app_id = (self.cfg.get("app_id") or "").strip()
         self.app_secret = (self.cfg.get("app_secret") or "").strip()
         self.folder_token = (self.cfg.get("folder_token") or "").strip()
+        # 知识库节点 token：填了就把笔记导入到该 wiki 节点下（先导云空间再移动挂载）
+        self.wiki_token = (self.cfg.get("wiki_token") or "").strip()
 
     @property
     def _cache_key(self) -> Tuple[str, str]:
@@ -165,6 +167,11 @@ class FeishuService:
                 result = self._poll_import_task(ticket)
                 token = result.get("token") or ""
                 doc_type = result.get("type") or "docx"
+                # 配了知识库节点 → 把这篇 docx 移动/挂载到该 wiki 节点下
+                if self.wiki_token:
+                    moved = self._move_to_wiki(token)
+                    logger.info(f"飞书导入知识库成功：{safe_title} -> {moved['url']}")
+                    return {**moved, "title": safe_title}
                 url = result.get("url") or self._fallback_doc_url(doc_type, token)
                 logger.info(f"飞书导入成功：{safe_title} -> {url}")
                 return {"url": url, "token": token, "type": doc_type, "title": safe_title}
@@ -278,6 +285,85 @@ class FeishuService:
         # open.feishu.cn → 主站 feishu.cn；open.larksuite.com → larksuite.com
         host = self.base_url.replace("https://open.", "https://").replace("http://open.", "http://")
         return f"{host}/{doc_type}/{token}"
+
+    def _site_host(self) -> str:
+        return self.base_url.replace("https://open.", "https://").replace("http://open.", "http://")
+
+    # ─── 知识库（Wiki）导入：把已生成的 docx 移动/挂载到 wiki 节点下 ────────────
+    def _wiki_space_id(self, node_token: str) -> str:
+        """由 wiki 节点 token 解析其所属知识库 space_id。"""
+        url = f"{self.base_url}/open-apis/wiki/v2/spaces/get_node"
+        try:
+            resp = requests.get(
+                url, headers=self._auth_headers(), params={"token": node_token}, timeout=DEFAULT_TIMEOUT
+            )
+            payload = resp.json()
+        except Exception as exc:
+            raise FeishuError(f"解析知识库节点失败：{exc}") from exc
+        if payload.get("code") != 0:
+            raise FeishuError(
+                self._fmt_api_error("解析知识库节点失败", payload)
+                + "。请确认「知识库节点」token 正确，且应用已加入该知识库并有编辑权限"
+            )
+        node = (payload.get("data") or {}).get("node") or {}
+        space_id = node.get("space_id")
+        if not space_id:
+            raise FeishuError(f"知识库节点缺少 space_id（{payload}）")
+        return space_id
+
+    def _move_to_wiki(self, docx_token: str) -> Dict[str, Any]:
+        """把 docx 移动/挂载到配置的 wiki 节点下，返回 {url, token, type}。"""
+        space_id = self._wiki_space_id(self.wiki_token)
+        url = f"{self.base_url}/open-apis/wiki/v2/spaces/{space_id}/nodes/move_docs_to_wiki"
+        body = {
+            "parent_wiki_token": self.wiki_token,
+            "obj_type": "docx",
+            "obj_token": docx_token,
+            "apply": True,
+        }
+        try:
+            resp = requests.post(
+                url,
+                headers={**self._auth_headers(), "Content-Type": "application/json"},
+                json=body,
+                timeout=DEFAULT_TIMEOUT,
+            )
+            payload = resp.json()
+        except Exception as exc:
+            raise FeishuError(f"移动文档到知识库失败：{exc}") from exc
+        if payload.get("code") != 0:
+            raise FeishuError(
+                self._fmt_api_error("移动文档到知识库失败", payload)
+                + "。请确认应用已开通 wiki 权限、已加入该知识库并有编辑权限"
+            )
+        data = payload.get("data") or {}
+        wiki_token = data.get("wiki_token")
+        if not wiki_token and data.get("task_id"):
+            wiki_token = self._poll_wiki_move(data["task_id"])
+        if not wiki_token:
+            raise FeishuError(f"知识库导入异常：未拿到 wiki_token（{payload}）")
+        return {"url": f"{self._site_host()}/wiki/{wiki_token}", "token": wiki_token, "type": "wiki"}
+
+    def _poll_wiki_move(self, task_id: str) -> str:
+        """move_docs_to_wiki 异步时轮询任务，返回新 wiki_token。"""
+        url = f"{self.base_url}/open-apis/wiki/v2/tasks/{task_id}"
+        for _ in range(_POLL_MAX_ATTEMPTS):
+            try:
+                resp = requests.get(
+                    url, headers=self._auth_headers(), params={"task_type": "move"}, timeout=DEFAULT_TIMEOUT
+                )
+                payload = resp.json()
+            except Exception as exc:
+                raise FeishuError(f"查询知识库导入结果失败：{exc}") from exc
+            if payload.get("code") != 0:
+                raise FeishuError(self._fmt_api_error("查询知识库导入结果失败", payload))
+            task = (payload.get("data") or {}).get("task") or {}
+            for item in task.get("move_result") or []:
+                wt = (item.get("node") or {}).get("wiki_token")
+                if wt:
+                    return wt
+            time.sleep(_POLL_INTERVAL)
+        raise FeishuError("知识库导入超时，请稍后到知识库查看")
 
     # ─── Markdown 预处理 ──────────────────────────────────────────────────────
     @staticmethod

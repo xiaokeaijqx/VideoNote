@@ -8,6 +8,7 @@ export interface FeishuConfig {
   auto_push: boolean
   app_id: string
   folder_token: string
+  wiki_token: string
   base_url: string
   app_secret_set: boolean
   configured: boolean
@@ -19,6 +20,7 @@ export interface FeishuConfigUpdate {
   app_id?: string
   app_secret?: string
   folder_token?: string
+  wiki_token?: string
   base_url?: string
   auto_push?: boolean
   enabled?: boolean

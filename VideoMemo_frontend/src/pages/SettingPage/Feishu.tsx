@@ -21,6 +21,7 @@ const Feishu = () => {
   const [appSecret, setAppSecret] = useState('')
   const [secretSet, setSecretSet] = useState(false)
   const [folderToken, setFolderToken] = useState('')
+  const [wikiToken, setWikiToken] = useState('')
   const [baseUrl, setBaseUrl] = useState('https://open.feishu.cn')
   const [enabled, setEnabled] = useState(false)
   const [autoPush, setAutoPush] = useState(false)
@@ -38,6 +39,7 @@ const Feishu = () => {
         setAppId(cfg.app_id || '')
         setSecretSet(!!cfg.app_secret_set)
         setFolderToken(cfg.folder_token || '')
+        setWikiToken(cfg.wiki_token || '')
         setBaseUrl(cfg.base_url || 'https://open.feishu.cn')
         setEnabled(!!cfg.enabled)
         setAutoPush(!!cfg.auto_push)
@@ -54,6 +56,7 @@ const Feishu = () => {
     const payload: FeishuConfigUpdate = {
       app_id: appId.trim(),
       folder_token: folderToken.trim(),
+      wiki_token: wikiToken.trim(),
       base_url: baseUrl.trim() || 'https://open.feishu.cn',
       enabled,
       auto_push: autoPush,
@@ -195,6 +198,24 @@ const Feishu = () => {
         <div className="vm-field-hint" style={{ marginTop: 8, whiteSpace: 'normal' }}>
           打开飞书目标文件夹，地址 <code>/drive/folder/<b>xxxx</b></code> 末尾即文件夹 token。
           请把你的自建应用添加为该文件夹协作者，否则应用没有写入权限。
+        </div>
+
+        {/* 知识库节点 token（可选）*/}
+        <label className="vm-field-label" htmlFor="feishu-wiki" style={{ marginTop: 14 }}>
+          知识库节点链接 / Token（可选）
+        </label>
+        <input
+          id="feishu-wiki"
+          className="vm-input"
+          value={wikiToken}
+          placeholder="填了就导入到知识库，如 https://xxx.feishu.cn/wiki/XmOJ..."
+          onChange={e => setWikiToken(e.target.value)}
+          style={{ marginTop: 6 }}
+        />
+        <div className="vm-field-hint" style={{ marginTop: 8, whiteSpace: 'normal' }}>
+          想把笔记放进<b>知识库(Wiki)</b>就填这里：直接粘贴知识库页面链接（<code>/wiki/xxxx</code>）即可，
+          笔记会作为该节点下的子文档。需把应用<b>加入该知识库并给编辑权限</b>、并开通 <code>wiki</code> 权限。
+          填了知识库就优先走知识库（上面的云空间文件夹仅作中转）。
         </div>
 
         {/* Base URL */}

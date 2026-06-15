@@ -1,4 +1,5 @@
 import os
+import re
 from typing import Any, Dict, Optional
 
 from app.db.app_config_dao import load_value, set_value
@@ -6,6 +7,20 @@ from app.db.app_config_dao import load_value, set_value
 # 飞书 / Lark 开放平台默认域名。海外租户用 open.larksuite.com，
 # 国内租户用 open.feishu.cn（默认）。用户可在设置页切换。
 DEFAULT_FEISHU_BASE_URL = "https://open.feishu.cn"
+
+
+def _extract_wiki_token(value: str) -> str:
+    """从飞书知识库链接或原始 token 取出 wiki 节点 token。
+
+    支持直接粘贴整条链接（https://xxx.feishu.cn/wiki/XmOJ...）或只填 token。
+    """
+    v = (value or "").strip()
+    if not v:
+        return ""
+    m = re.search(r"/wiki/([A-Za-z0-9]+)", v)
+    if m:
+        return m.group(1)
+    return v.split("?")[0].split("/")[-1].strip()
 
 
 class FeishuConfigManager:
@@ -48,6 +63,8 @@ class FeishuConfigManager:
             "app_id": (data.get("app_id") or "").strip(),
             "app_secret": (data.get("app_secret") or "").strip(),
             "folder_token": (data.get("folder_token") or "").strip(),
+            # 知识库节点 token：填了就把笔记导入到该 wiki 节点下（否则导入云空间文件夹）
+            "wiki_token": _extract_wiki_token(data.get("wiki_token") or ""),
             "base_url": base_url.rstrip("/"),
             "push_backend": backend,
             "cli_path": (data.get("cli_path") or "lark-cli").strip() or "lark-cli",
@@ -68,6 +85,7 @@ class FeishuConfigManager:
         app_id: Optional[str] = None,
         app_secret: Optional[str] = None,
         folder_token: Optional[str] = None,
+        wiki_token: Optional[str] = None,
         base_url: Optional[str] = None,
         push_backend: Optional[str] = None,
         cli_path: Optional[str] = None,
@@ -85,6 +103,8 @@ class FeishuConfigManager:
             data["app_secret"] = app_secret.strip()
         if folder_token is not None:
             data["folder_token"] = folder_token.strip()
+        if wiki_token is not None:
+            data["wiki_token"] = _extract_wiki_token(wiki_token)
         if base_url is not None:
             data["base_url"] = base_url.strip()
         if push_backend is not None:

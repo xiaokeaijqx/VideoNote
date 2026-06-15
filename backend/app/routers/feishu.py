@@ -28,6 +28,7 @@ class FeishuConfigRequest(BaseModel):
     app_id: Optional[str] = None
     app_secret: Optional[str] = None
     folder_token: Optional[str] = None
+    wiki_token: Optional[str] = None  # 知识库节点链接/token，填了就导入到该 wiki 节点下
     base_url: Optional[str] = None
     auto_push: Optional[bool] = None
     enabled: Optional[bool] = None
@@ -108,6 +109,7 @@ def update_feishu_config(data: FeishuConfigRequest):
         app_id=data.app_id,
         app_secret=data.app_secret,
         folder_token=data.folder_token,
+        wiki_token=data.wiki_token,
         base_url=data.base_url,
         push_backend=data.push_backend,
         cli_path=data.cli_path,
