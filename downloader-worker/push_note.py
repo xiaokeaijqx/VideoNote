@@ -105,7 +105,12 @@ def run_daemon(base: str, headers: dict, cookies: str | None):
     print(f"[worker] 守护模式启动，轮询 {base}/worker/next …（Ctrl-C 退出）", flush=True)
     while True:
         try:
-            r = requests.get(f"{base}/worker/next", headers=headers, timeout=30).json()
+            resp = requests.get(f"{base}/worker/next", headers=headers, timeout=30)
+            if resp.status_code == 401:
+                print("[worker] ⚠️ 访问密码错误或未设置(WEB_PASSWORD)，修正后重启 worker。", flush=True)
+                time.sleep(10)
+                continue
+            r = resp.json()
         except Exception as e:
             print(f"[worker] 轮询出错（5s 后重试）: {e}", flush=True)
             time.sleep(5)
