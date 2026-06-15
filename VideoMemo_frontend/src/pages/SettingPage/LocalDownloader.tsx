@@ -95,8 +95,7 @@ const LocalDownloader = () => {
     }
   }
 
-  const installCmd =
-    '# 已 clone 本项目后，在项目根目录执行：\ncd downloader-worker && sh install.sh'
+  const installCmd = 'cd downloader-worker && sh install.sh'
   const logCmd = 'tail -f ~/Library/Logs/videonote-worker.log'
   const restartCmd = 'launchctl kickstart -k "gui/$(id -u)/com.videonote.worker"'
   const stopCmd = 'launchctl unload ~/Library/LaunchAgents/com.videonote.worker.plist'
@@ -229,11 +228,15 @@ const LocalDownloader = () => {
         <div style={{ marginTop: 24, borderTop: '1px solid var(--vm-border, #e5e7eb)', paddingTop: 18 }}>
           <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>在本地安装 worker</div>
           <div className="vm-muted" style={{ fontSize: 12.5, marginBottom: 10 }}>
-            前提：你电脑已装 Python 3.10+ 和 ffmpeg（<code>brew install ffmpeg</code>）。一条命令装好，
-            自动建独立环境 + 配开机自启 + 会提示你输入访问密码。
+            只需电脑装了 <b>Python 3.10+</b>。运行后会<b>自动检测环境（缺 ffmpeg 用 brew 自动装）、
+            提示你输入访问密码、装好并启动、还会验证是否上线</b>。无需手动配置。
           </div>
 
-          <div style={{ fontSize: 13, fontWeight: 600 }}>① 安装并启动</div>
+          <div style={{ fontSize: 13, fontWeight: 600 }}>① 安装并启动（二选一）</div>
+          <div className="vm-field-hint" style={{ margin: '4px 0', whiteSpace: 'normal' }}>
+            · Finder 里直接<b>双击 <code>downloader-worker/install.command</code></b>；或
+            <br />· 终端执行下面这条：
+          </div>
           <CodeBlock code={installCmd} />
 
           <div style={{ fontSize: 13, fontWeight: 600, marginTop: 12 }}>② 看运行日志（确认在线）</div>
